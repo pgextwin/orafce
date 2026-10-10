@@ -27,6 +27,30 @@ if($actualFunctionCount -lt 30){throw "Suspicious PG_FUNCTION_INFO_V1 export cou
 $exports=@($exports | Sort-Object -Unique)
 $defpath=Join-Path $UpstreamDir "$module.pgextwin.def"
 (@("LIBRARY $module","EXPORTS") + @($exports | ForEach-Object {"    $_"})) | Set-Content $defpath -Encoding ascii
+# PostgreSQL 14 Windows postgres.lib does not export the backend Mode data symbol
+# referenced by the IsNormalProcessingMode() macro. In PG14 only, check the
+# transaction state when deciding whether to enforce the umask setter's role
+# restriction. This is stricter (never less strict) during early processing.
+# Preserve upstream source in git; patch only this disposable SHA-pinned checkout.
+$pgMajor=[int]([regex]::Match($pgversion,'^PostgreSQL\s+(\d+)\.')).Groups[1].Value
+if($pgMajor -eq 14){
+    $sourcePath=Join-Path $UpstreamDir 'file.c'
+    $source=[IO.File]::ReadAllText($sourcePath,[Text.Encoding]::UTF8)
+    $needle='if (orafce_initialized && IsNormalProcessingMode() && IsTransactionState())'
+    if(($source.Split(@($needle),[StringSplitOptions]::None).Count - 1) -ne 1){
+        throw 'Pinned PG14 upstream file.c processing-mode hook changed'
+    }
+    $replacement=@'
+#if PG_VERSION_NUM < 150000
+    if (orafce_initialized && IsTransactionState())
+#else
+    if (orafce_initialized && IsNormalProcessingMode() && IsTransactionState())
+#endif
+'@
+    $source=$source.Replace($needle,$replacement.TrimEnd())
+    [IO.File]::WriteAllText($sourcePath,$source,[Text.UTF8Encoding]::new($false))
+    Write-Host 'Applied fail-closed PG14 Windows Mode import compatibility patch.'
+}
 # The immutable v4.16.13 release tag already advertises default_version=4.16.
 # Preserve the pinned upstream control file without rewriting its contents.
 $controlpath=Join-Path $UpstreamDir 'orafce.control'

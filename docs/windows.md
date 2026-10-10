@@ -15,3 +15,7 @@ Native MSVC/Meson compilation uses upstream source; an exact Windows dependency 
 Do not install a pilot ZIP into production and do not treat unexecuted tests as passes. Upgrades, rollback, interaction with other extensions and backup/restore require separate testing.
 
 All published binary artifacts must carry source provenance, exact PostgreSQL major, checksums, SBOM and vulnerability report.
+
+### PostgreSQL 14 import-library note
+
+The PG14 Windows `postgres.lib` does not expose the backend data symbol `Mode`. On PG14 only, the disposable build checkout keeps the `orafce.umask` permission guard active whenever a transaction is in progress, rather than importing the internal `IsNormalProcessingMode()` macro's `Mode` symbol. PG15–18 retain upstream logic. The change is constrained to the exact pinned source text and must pass the PG14 functional tests before distribution.
