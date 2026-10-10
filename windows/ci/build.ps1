@@ -37,7 +37,7 @@ if($pgMajor -eq 14){
     $sourcePath=Join-Path $UpstreamDir 'file.c'
     $source=[IO.File]::ReadAllText($sourcePath,[Text.Encoding]::UTF8)
     $needle='if (orafce_initialized && IsNormalProcessingMode() && IsTransactionState())'
-    if(($source.Split(@($needle),[StringSplitOptions]::None).Count - 1) -ne 1){
+    if(([regex]::Matches($source,[regex]::Escape($needle)).Count) -ne 1){
         throw 'Pinned PG14 upstream file.c processing-mode hook changed'
     }
     $replacement=@'
