@@ -1,0 +1,17 @@
+name: Windows technical pilot
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: wave3-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  windows:
+    uses: pgextwin/build/.github/workflows/build-extension.yml@5756b3c5136a8bf4db710016cfe97555f0a71c6d
+    with:
+      extension_config_path: config/extension.json
+      test_contract_path: config/test-contract.json
