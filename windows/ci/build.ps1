@@ -27,14 +27,12 @@ if($actualFunctionCount -lt 30){throw "Suspicious PG_FUNCTION_INFO_V1 export cou
 $exports=@($exports | Sort-Object -Unique)
 $defpath=Join-Path $UpstreamDir "$module.pgextwin.def"
 (@("LIBRARY $module","EXPORTS") + @($exports | ForEach-Object {"    $_"})) | Set-Content $defpath -Encoding ascii
-# A tagged v4.16.13 checkout unexpectedly advertises '4.17' by default.
-# Fail closed on changes, and align the disposable control file with provided 4.16 SQL.
+# The immutable v4.16.13 release tag already advertises default_version=4.16.
+# Preserve the pinned upstream control file without rewriting its contents.
 $controlpath=Join-Path $UpstreamDir 'orafce.control'
 $control=[IO.File]::ReadAllText($controlpath,[Text.Encoding]::UTF8)
-if($control -notmatch "default_version\s*=\s*'4\.17'"){throw 'Unexpected upstream control version; investigate before packaging'}
-$control=[regex]::Replace($control,"default_version\s*=\s*'4\.17'","default_version = '4.16'")
-[IO.File]::WriteAllText($controlpath,$control,[Text.UTF8Encoding]::new($false))
-if(-not(Test-Path (Join-Path $UpstreamDir 'orafce--4.16.sql'))){throw 'Pinned 4.16 SQL missing'}
+if($control -notmatch "default_version\s*=\s*'4\.16'"){throw 'Unexpected default version in pinned orafce release control file'}
+if(-not(Test-Path (Join-Path $UpstreamDir 'orafce--4.16.sql'))){throw 'Pinned 4.16 release SQL missing'}
 $mesonpath=Join-Path $UpstreamDir 'meson.build'
 $meson=[IO.File]::ReadAllText($mesonpath,[Text.Encoding]::UTF8)
 $marker="module_lib = shared_module(" + [Environment]::NewLine + "  module_name," + [Environment]::NewLine + "  sources,"
