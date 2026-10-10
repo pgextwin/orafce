@@ -1,17 +1,47 @@
-name: Windows technical pilot
+name: Windows CI/CD
 on:
   pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
+      - "release/**"
   workflow_dispatch:
+
+concurrency:
+  group: windows-release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
-concurrency:
-  group: wave3-${{ github.repository }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   windows:
-    uses: pgextwin/build/.github/workflows/build-extension.yml@8aed6b564514af10d97f846333ced00925642845
+    if: ${{ !startsWith(github.ref, 'refs/heads/release/') }}
+    permissions:
+      contents: read
+    uses: pgextwin/build/.github/workflows/build-extension.yml@43993b864e59bd35870e15c410ac13c85def8531
     with:
       extension_config_path: config/extension.json
       test_contract_path: config/test-contract.json
+
+  release_build:
+    if: ${{ startsWith(github.ref, 'refs/heads/release/') }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: pgextwin/build/.github/workflows/build-extension-attested.yml@43993b864e59bd35870e15c410ac13c85def8531
+    with:
+      extension_config_path: config/extension.json
+      test_contract_path: config/test-contract.json
+
+  release:
+    if: ${{ startsWith(github.ref, 'refs/heads/release/') }}
+    needs: release_build
+    permissions:
+      contents: write
+    uses: pgextwin/build/.github/workflows/release-extension.yml@43993b864e59bd35870e15c410ac13c85def8531
+    with:
+      extension_name: ${{ needs.release_build.outputs.extension_name }}
+      upstream_repository: ${{ needs.release_build.outputs.upstream_repository }}
