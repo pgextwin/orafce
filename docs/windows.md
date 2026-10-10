@@ -4,7 +4,7 @@ Status: **engineering only / release blocked until green full matrix**.
 
 Upstream: https://github.com/orafce/orafce/tree/e538f81acccf73bd9c40977e22e8c4984e452622
 
-Native MSVC/Meson compilation uses upstream source; an exact Windows dependency and export audit is required. The pinned upstream control file may advertise a future default_version; the test checkout must use the release SQL version 4.16 rather than claiming 4.17.
+Native MSVC/Meson compilation uses upstream source; an exact Windows dependency and export audit is required. The pinned v4.16.13 release tag correctly sets default_version 4.16; preserve the upstream release control file exactly rather than using the development-branch 4.17 default.
 
 1. Validate full native Windows x64 CI for PG14 (if still maintained) through PG18.
 2. Verify exact license bytes and immutable upstream SHA.
