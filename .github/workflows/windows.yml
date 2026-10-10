@@ -8,7 +8,7 @@ permissions:
   contents: read
 concurrency:
   group: wave3-${{ github.repository }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   windows:
     uses: pgextwin/build/.github/workflows/build-extension.yml@8aed6b564514af10d97f846333ced00925642845
