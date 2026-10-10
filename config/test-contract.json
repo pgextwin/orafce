@@ -1,0 +1,44 @@
+{
+  "contractVersion": 2,
+  "extension": "orafce",
+  "smokeTest": {
+    "script": "windows/ci/smoke-test.ps1"
+  },
+  "runtimeRequirements": {
+    "extensionCreation": "required",
+    "preload": "none",
+    "backgroundWorker": false,
+    "clientExecutable": {
+      "required": false,
+      "packagePaths": []
+    }
+  },
+  "testSetup": {
+    "preload": "none",
+    "backgroundWorker": false,
+    "settings": []
+  },
+  "coverage": {
+    "createExtension": "covered",
+    "backgroundWorker": "not-applicable",
+    "clientExecutable": "not-applicable",
+    "serverLogAssertions": "not-covered",
+    "upgrade": "not-covered"
+  },
+  "functionalScenarios": [
+    {
+      "id": "oracle-compat-last-day",
+      "description": "Validate Oracle last_day leap-year date handling",
+      "evidence": [
+        "sql-result"
+      ]
+    },
+    {
+      "id": "oracle-compat-nvl",
+      "description": "Validate Oracle nvl null substitution",
+      "evidence": [
+        "sql-result"
+      ]
+    }
+  ]
+}
