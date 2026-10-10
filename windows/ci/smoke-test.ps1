@@ -29,7 +29,7 @@ try {
     @'
 SET TIME ZONE 'UTC';
 CREATE EXTENSION orafce;
-DO $
+DO $$
 BEGIN
   IF oracle.last_day(DATE '2024-02-12') <> DATE '2024-02-29'
     THEN RAISE EXCEPTION 'oracle.last_day leap year wrong'; END IF;
@@ -39,7 +39,7 @@ BEGIN
     THEN RAISE EXCEPTION 'oracle.nvl null handling wrong'; END IF;
   IF oracle.nvl(3::integer,7) <> 3
     THEN RAISE EXCEPTION 'oracle.nvl non-null handling wrong'; END IF;
-END $;
+END $$;
 DROP EXTENSION orafce CASCADE;
 '@ | Set-Content -Path $sql -Encoding utf8
     & $psql -h 127.0.0.1 -p $PgPort -U postgres -d postgres -v ON_ERROR_STOP=1 -f $sql
