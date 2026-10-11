@@ -1,6 +1,6 @@
-# Windows pilot — orafce
+# Windows installation and verification — orafce
 
-Status: **engineering only / release blocked until green full matrix**.
+Status: **v4.16.13-windows.1 published for PostgreSQL 14–18** after the required Windows CI and Release verification. [Published release](https://github.com/pgextwin/orafce/releases/tag/v4.16.13-windows.1).
 
 Upstream: https://github.com/orafce/orafce/tree/e538f81acccf73bd9c40977e22e8c4984e452622
 
@@ -12,7 +12,7 @@ Native MSVC/Meson compilation uses upstream source; an exact Windows dependency 
 4. For deployment, stop the server before replacing libraries; install the ZIP contents into the matching PostgreSQL root and restart for preload modules.
 5. Run the documented SQL tests and repeat on an isolated production-equivalent Windows environment.
 
-Do not install a pilot ZIP into production and do not treat unexecuted tests as passes. Upgrades, rollback, interaction with other extensions and backup/restore require separate testing.
+Do not interpret CI coverage as a production compatibility guarantee; verify the exact ZIP on a production-equivalent environment before deployment. Upgrades, rollback, interaction with other extensions and backup/restore require separate testing.
 
 All published binary artifacts must carry source provenance, exact PostgreSQL major, checksums, SBOM and vulnerability report.
 

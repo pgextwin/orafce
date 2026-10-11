@@ -1,13 +1,11 @@
-# orafce — Windows x64 技術パイロット
+# orafce — Windows x64 バイナリ（pgextwin）
 
 [English](README.md) | 日本語
 
-通常の Windows 版 PostgreSQL 向けの**非公式・検証中**の拡張機能です。実際の CI で合格するまで、バイナリ配布や動作保証はしません。
+[orafce](https://github.com/orafce/orafce) **4.16.13**（上流タグ `VERSION_4_16_13`、固定コミット `e538f81acccf73bd9c40977e22e8c4984e452622`）を基にした非公式コミュニティ製Windows x64バイナリです。
 
-- 上流：`orafce/orafce`、安定版 `VERSION_4_16_13`、固定コミット `e538f81acccf73bd9c40977e22e8c4984e452622`
-- 対象：PostgreSQL 14・15・16・17・18、Windows x64
-- PG14 は上流が対応する場合のみ。2026-11-12 の EOL 後は共通 Build のマトリクスから自動除外
-- 各 PostgreSQL major で Windows ビルド、PostgreSQL 起動、実機能検証、ZIP、SPDX SBOM、Grype、チェックサムを実施
-- 正式 Release・Catalog・Website 掲載は、実動作と検証済み成果物が揃うまで禁止
+**現在の公開Release：** [v4.16.13-windows.1](https://github.com/pgextwin/orafce/releases/tag/v4.16.13-windows.1)。PostgreSQL **14〜18**向けに、メジャーバージョン別のZIPを公開しています。SHA256・SPDX SBOM・Grype・証明情報は[pgextwin Pages](https://pgextwin.github.io/website/ja/)で確認できます。上流公式のWindows配布ではありません。
 
-[機能範囲と導入方法](docs/windows_ja.md) を参照してください。
+Windows CIではPostgreSQLの起動、`CREATE EXTENSION orafce`、Oracle互換`last_day`のうるう年処理、`nvl`のNULL置換を実際に検証しています。**事前ロードは不要**です。Oracle互換機能のすべて、拡張機能のアップグレード、Oracleとの完全互換性を検証済みとするものではありません。[Windows導入・検証ガイド](docs/windows_ja.md)も参照してください。
+
+PostgreSQL 14の新規ビルド対象は公式EOLの**2026-11-12**までで、公開済みZIPはEOL後も履歴として保持します。上流更新だけで無条件にReleaseを公開する運用ではありません。
