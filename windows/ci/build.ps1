@@ -51,12 +51,25 @@ if($pgMajor -eq 14){
     [IO.File]::WriteAllText($sourcePath,$source,[Text.UTF8Encoding]::new($false))
     Write-Host 'Applied fail-closed PG14 Windows Mode import compatibility patch.'
 }
-# The immutable v4.16.13 release tag already advertises default_version=4.16.
-# Preserve the pinned upstream control file without rewriting its contents.
+# Validate the exact source checkout against the reviewed manifest. Orafce
+# upstream control files use major.minor, while tags include patch versions.
+$manifestPath=Join-Path $PSScriptRoot '../../config/extension.json'
+if(-not(Test-Path $manifestPath)){throw "Missing packaging extension manifest: $manifestPath"}
+$manifest=Get-Content $manifestPath -Raw | ConvertFrom-Json
+if($manifest.name -ne 'orafce'){throw 'Invalid orafce packaging manifest name'}
+$expectedVersion=[string]$manifest.upstream.version
+$versionMatch=[regex]::Match($expectedVersion,'^(\d+)\.(\d+)\.(\d+)$')
+if(-not $versionMatch.Success){throw "Invalid SHA-pinned orafce release version: $expectedVersion"}
+$controlVersion=$versionMatch.Groups[1].Value+'.'+$versionMatch.Groups[2].Value
 $controlpath=Join-Path $UpstreamDir 'orafce.control'
 $control=[IO.File]::ReadAllText($controlpath,[Text.Encoding]::UTF8)
-if($control -notmatch "default_version\s*=\s*'4\.16'"){throw 'Unexpected default version in pinned orafce release control file'}
-if(-not(Test-Path (Join-Path $UpstreamDir 'orafce--4.16.sql'))){throw 'Pinned 4.16 release SQL missing'}
+$controlMatch=[regex]::Match($control,"(?m)^\s*default_version\s*=\s*'([^']+)'\s*$")
+if(-not $controlMatch.Success -or $controlMatch.Groups[1].Value -ne $controlVersion){
+    throw "orafce upstream control version does not match SHA-pinned manifest: $expectedVersion"
+}
+if(-not(Test-Path (Join-Path $UpstreamDir "orafce--$controlVersion.sql"))){
+    throw "Missing verified upstream orafce--$controlVersion.sql for release $expectedVersion"
+}
 $mesonpath=Join-Path $UpstreamDir 'meson.build'
 $meson=[IO.File]::ReadAllText($mesonpath,[Text.Encoding]::UTF8)
 $marker="module_lib = shared_module(" + [Environment]::NewLine + "  module_name," + [Environment]::NewLine + "  sources,"
