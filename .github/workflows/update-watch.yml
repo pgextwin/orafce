@@ -1,32 +1,30 @@
-name: Upstream update watch and immutable Windows candidates
+name: Upstream candidate after verified central daily fleet scan
 
+# Only the central 00:00 UTC job scans all upstreams; this runs 03:30 UTC.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/update-watch.yml
   schedule:
-    # Daily 00:00 UTC / 09:00 JST, actual GitHub scheduling can be delayed.
-    - cron: "0 0 * * *"
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: Inspect only; do not create or mutate candidate PR or Issues
-        required: false
-        type: boolean
-        default: true
-
-concurrency:
-  group: upstream-watch-${{ github.repository }}
-  cancel-in-progress: false
+    - cron: "30 3 * * *"
 
 permissions:
   contents: read
-  issues: write
+
+concurrency:
+  group: verified-auto-candidate-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
-  watch:
+  authorize:
+    name: Read-only latest 17-fleet success and exact protected main preflight
+    permissions:
+      contents: read
+    uses: pgextwin/build/.github/workflows/operator-update-auto.yml@eaac18cb195f21294964b4a132c5cfc754a90b62
+    with:
+      detector_sha: 16b886b9d06d6f389b369b87ce0c155767697ca0
+
+  watch_candidate:
+    name: Explicit upstream check and Issue reconciliation
+    needs: authorize
+    if: ${{ needs.authorize.outputs.mode == 'candidate' }}
     permissions:
       contents: read
       issues: write
@@ -34,10 +32,12 @@ jobs:
     with:
       extension_config_path: config/extension.json
       update_watch_path: config/update-watch.json
-      dry_run: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+      dry_run: false
 
   candidate:
-    needs: watch
+    name: Prepare requested SHA-pinned Windows candidate (never Release)
+    needs: [authorize, watch_candidate]
+    if: ${{ needs.authorize.outputs.mode == 'candidate' && needs.watch_candidate.result == 'success' }}
     permissions:
       contents: write
       pull-requests: write
@@ -47,4 +47,4 @@ jobs:
       extension_config_path: config/extension.json
       update_watch_path: config/update-watch.json
       candidate_policy_path: config/candidate-build.json
-      dry_run: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+      dry_run: false
