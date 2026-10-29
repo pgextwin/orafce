@@ -121,7 +121,7 @@ def authenticate_original(local, base_sha):
                              prepare.REQUEST_PATH + "?ref=" + run["head_sha"])
     need(record.get("encoding") == "base64" and isinstance(record.get("content"), str),
          "missing original central request")
-    raw = base64.b64decode(record["content"].replace("\\n", "").replace("\\r", ""),
+    raw = base64.b64decode(record["content"].replace(chr(10), "").replace(chr(13), ""),
                            validate=True)
     need(store.blob_hash(raw) == record.get("sha"), "central request Git blob mismatch")
     declaration = contract.validate_declaration(raw, prepare.REQUEST_PATH)
@@ -210,7 +210,7 @@ def run():
             localWorkflowInstalled=True, originalScanReexecuted=False)
     except Exception as exc:
         result["reason"] = str(exc)[:400]
-    Path(OUTPUT).write_text(json.dumps(result, sort_keys=True) + "\\n", encoding="utf-8")
+    Path(OUTPUT).write_text(json.dumps(result, sort_keys=True) + chr(10), encoding="utf-8")
     print(json.dumps(result, sort_keys=True))
     return 0 if result["result"] in ("NO_UPDATE", "UPDATE_PRESENT_NOT_AUTHORIZED") else 1
 
