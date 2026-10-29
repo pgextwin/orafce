@@ -14,10 +14,9 @@ class LocalPreparePolicy(unittest.TestCase):
         for forbidden in ("schedule:", "workflow_dispatch:", "contents: write",
                           "pull-requests: write", "secrets.", "id-token: write",
                           "gh release ", "PUBLISH=ALLOW", "repository_dispatch:"):
-            # Deny YAML event keys, not explanatory comments.
-            import re
-            self.assertIsNone(re.search(r"^\\s*" + re.escape(forbidden) +
-                                        r"\\s*", text, re.MULTILINE), forbidden)
+            active_lines = [line.strip() for line in text.splitlines()
+                            if line.strip() and not line.lstrip().startswith("#")]
+            self.assertNotIn(forbidden, active_lines)
 
     def test_local_proof_never_grants_candidate_writer(self):
         text = (ROOT / "scripts/issue311-local-prepare.py").read_text()
