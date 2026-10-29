@@ -85,13 +85,15 @@ def authenticate_local():
     data = strict(raw)
     need(isinstance(data, dict) and set(data) == {
         "schemaVersion", "kind", "requestId", "mode", "sourceRunId",
-        "sourceHeadSha", "sourceArtifactId", "sourceZipSha256",
+        "sourceHeadSha", "sourceArtifactId", "sourceZipSha256", "centralRequestId",
         "targetMainSha", "expiresAt", "publicReleaseAuthorized"}
         and data["schemaVersion"] == 1 and data["kind"] == "pgextwin-local-prepare"
         and data["requestId"] == REQUEST and data["mode"] == "PREPARE"
         and type(data["sourceRunId"]) is int and data["sourceRunId"] > 0
         and type(data["sourceArtifactId"]) is int and data["sourceArtifactId"] > 0
         and SHA40.fullmatch(data["sourceHeadSha"]) is not None
+        and re.fullmatch(r"r-20261029-r06prepare[a-z0-9-]{4,40}",
+                         data["centralRequestId"]) is not None
         and SHA64.fullmatch(data["sourceZipSha256"]) is not None
         and data["targetMainSha"] == before
         and data["publicReleaseAuthorized"] is False
@@ -117,19 +119,20 @@ def authenticate_original(local, base_sha):
          and timedelta(0) <= datetime.now(timezone.utc) - utc(run["created_at"])
                              < timedelta(hours=12),
          "unaccepted original central PREPARE Run")
+    central_path = ".github/execution-requests/" + local["centralRequestId"] + ".json"
     record = bridge.get_json("repos/pgextwin/build/contents/" +
-                             prepare.REQUEST_PATH + "?ref=" + run["head_sha"])
+                             central_path + "?ref=" + run["head_sha"])
     need(record.get("encoding") == "base64" and isinstance(record.get("content"), str),
          "missing original central request")
     raw = base64.b64decode(record["content"].replace(chr(10), "").replace(chr(13), ""),
                            validate=True)
     need(store.blob_hash(raw) == record.get("sha"), "central request Git blob mismatch")
-    declaration = contract.validate_declaration(raw, prepare.REQUEST_PATH)
+    declaration = contract.validate_declaration(raw, central_path)
     original_request = strict(raw)
     targets = {t["repo"]: t["mainSha"] for t in original_request["targets"]}
-    need(declaration["requestId"] == prepare.REQUEST and declaration["mode"] == "PREPARE"
+    need(declaration["requestId"] == local["centralRequestId"] and declaration["mode"] == "PREPARE"
          and len(targets) == len(original_request["targets"]) == 17
-         and targets == prepare.win.TARGETS
+         and set(targets) == set(prepare.win.TARGETS)
          and targets.get(REPO) == base_sha
          and original_request["approval"]["publicReleaseAuthorized"] is False
          and original_request["approval"]["publicationGrants"] == []
@@ -160,7 +163,7 @@ def authenticate_original(local, base_sha):
          "not exact original source ZIP")
     original, outer_sha = bridge.original_zip(artifact, prepare.RECEIPT)
     need(outer_sha == local["sourceZipSha256"]
-         and original.get("requestId") == prepare.REQUEST
+         and original.get("requestId") == local["centralRequestId"]
          and original.get("requestSha256") == declaration["rawSha256"]
          and original.get("sourceHeadSha") == run["head_sha"]
          and original.get("sourceRunId") == sid
