@@ -1,0 +1,51 @@
+name: Issue 311 exact App bot actor pilot (NO PREPARE / NO PUBLISH)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/issue311-coordinator-actor-pilot.yml'
+      - 'scripts/issue311-coordinator-actor-pilot.py'
+      - 'tests/test-issue311-coordinator-actor-pilot.py'
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: 'Exact approved nonpublishing actor pilot request'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue311-coordinator-actor-pilot-${{ github.repository }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline_policy:
+    if: github.event_name == 'pull_request'
+    name: Reject forged App actor and privileged inputs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python tests/test-issue311-coordinator-actor-pilot.py
+
+  original_actor:
+    name: Actual GitHub App bot source (READONLY, NEVER PUBLISH)
+    if: github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify original GitHub bot event, ID350058024 and exact AUDIT_ONLY input
+        run: python scripts/issue311-coordinator-actor-pilot.py
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue311-real-bot-actor-original
+          path: issue311-coordinator-actor-original.json
+          retention-days: 30
+          if-no-files-found: warn
