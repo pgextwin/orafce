@@ -68,3 +68,33 @@ for required in ("authenticate_original(", "remote_branch(", "centralOriginalOut
     assert required in body
 assert "release create" not in body and "git push" not in body
 print("ISSUE311_APP_BOT_LOCAL_PREPARE_NEGATIVE_TESTS_PASS")
+
+# R07 must not inherit trusted App identity from a mere dispatch or PR.
+# The only Windows build path follows the strict local original source verifier.
+workflow = Path(".github/workflows/issue311-request-local-prepare.yml").read_text()
+assert workflow.count("\n  r07_windows:") == 1
+assert workflow.count("\n  r07_windows_required:") == 1
+app_windows = workflow.split("\n  r07_windows:", 1)[1].split("\n  r07_windows_required:", 1)[0]
+for guard in (
+    "needs: app_local_prepare",
+    "needs.app_local_prepare.result == 'success'",
+    "github.repository == 'pgextwin/orafce'",
+    "github.event_name == 'workflow_dispatch'",
+    "github.ref == 'refs/heads/main'",
+    "github.actor == 'pgextwin-issue311-prepare-coord[bot]'",
+    "github.run_attempt == 1",
+    "permissions:\n      contents: read",
+    "build-extension.yml@474ae1745c5c570956b39de3d882febad560ea7f",
+):
+    assert guard in app_windows, f"unsafe R07 App-Windows policy: {guard}"
+summary = workflow.split("\n  r07_windows_required:", 1)[1]
+for guard in (
+    "always()", "needs: [app_local_prepare, r07_windows]",
+    "needs.r07_windows.result", "R07_APP_LOCAL_RESULT",
+    'test "$R07_APP_LOCAL_RESULT" = success || exit 1',
+    "scripts/required_windows_summary.py",
+):
+    assert guard in summary, f"unsafe R07 required Windows summary: {guard}"
+assert "release create" not in app_windows.lower()
+assert "permissions:\n      contents: write" not in workflow
+print("ISSUE311_R07_APP_WINDOWS_FAIL_CLOSED_NEGATIVE_PASS")
