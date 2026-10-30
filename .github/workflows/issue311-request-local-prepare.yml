@@ -80,3 +80,37 @@ jobs:
           path: issue311-app-local-prepare-receipt.json
           if-no-files-found: error
           retention-days: 30
+
+  # R07-01: same original App-run, after strict sender/central ZIP admission.
+  # Reuse the existing Windows CI reusable build; no signer/Publisher/Release.
+  r07_windows:
+    name: R07-01 authenticated App original Windows PG14-18
+    if: ${{ github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && needs.app_local_prepare.result == 'success' }}
+    needs: app_local_prepare
+    permissions:
+      contents: read
+    uses: pgextwin/build/.github/workflows/build-extension.yml@474ae1745c5c570956b39de3d882febad560ea7f
+    with:
+      extension_config_path: config/extension.json
+      test_contract_path: config/test-contract.json
+
+  r07_windows_required:
+    name: R07-01 Windows required summary
+    if: ${{ always() && github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 }}
+    needs: [app_local_prepare, r07_windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Strict required Windows summary denial regression
+        run: python3 tests/test_required_windows_summary.py
+      - name: Require admitted App source and full maintained-PG Windows matrix
+        env:
+          WINDOWS_MATRIX_RESULT: ${{ needs.r07_windows.result }}
+          R07_APP_LOCAL_RESULT: ${{ needs.app_local_prepare.result }}
+        run: |
+          test "$R07_APP_LOCAL_RESULT" = success || exit 1
+          python3 scripts/required_windows_summary.py
