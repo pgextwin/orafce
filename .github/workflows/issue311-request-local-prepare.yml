@@ -101,7 +101,7 @@ jobs:
         with:
           persist-credentials: false
           repository: pgextwin/build
-          ref: 4df051757689327fa3308ed09dc999829b4a17d5
+          ref: 407130721c20b17aa1a562c9696613840818a6c6
           path: .pgextwin-build
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
@@ -136,7 +136,7 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-    uses: pgextwin/build/.github/workflows/build-extension-attested.yml@5756b3c5136a8bf4db710016cfe97555f0a71c6d
+    uses: pgextwin/build/.github/workflows/build-extension-attested.yml@dc863f4047ee2bab8806a48f4b203fdee6b012ba
     with:
       extension_config_path: config/extension.json
       test_contract_path: config/test-contract.json
@@ -183,7 +183,7 @@ jobs:
         with:
           persist-credentials: false
           repository: pgextwin/build
-          ref: 4df051757689327fa3308ed09dc999829b4a17d5
+          ref: 407130721c20b17aa1a562c9696613840818a6c6
           path: .pgextwin-build
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
@@ -234,7 +234,7 @@ jobs:
         with:
           persist-credentials: false
           repository: pgextwin/build
-          ref: 4df051757689327fa3308ed09dc999829b4a17d5
+          ref: 407130721c20b17aa1a562c9696613840818a6c6
           path: .pgextwin-build
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
@@ -284,7 +284,7 @@ jobs:
         with:
           persist-credentials: false
           repository: pgextwin/build
-          ref: 4df051757689327fa3308ed09dc999829b4a17d5
+          ref: 407130721c20b17aa1a562c9696613840818a6c6
           path: .pgextwin-build
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:

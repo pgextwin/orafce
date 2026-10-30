@@ -85,7 +85,7 @@ for guard in (
     "github.actor == 'pgextwin-issue311-prepare-coord[bot]'",
     "github.run_attempt == 1",
     "permissions:\n      contents: read",
-    "build-extension-attested.yml@5756b3c5136a8bf4db710016cfe97555f0a71c6d",
+    "build-extension-attested.yml@dc863f4047ee2bab8806a48f4b203fdee6b012ba",
     "id-token: write", "attestations: write", "artifact-metadata: write",
 ):
     assert guard in app_windows, f"unsafe R07 App-Windows policy: {guard}"
@@ -109,7 +109,7 @@ for name in ("r08_app_signing_intent", "r08_signed_audit_first",
 intent = workflow.split("\n  r08_app_signing_intent:",1)[1].split("\n  # R07-01:",1)[0]
 for guard in ("needs: app_local_prepare", "needs.app_local_prepare.result == 'success'",
               "issue311-r08-app-oidc-intent.py", "issue311-app-local-prepare-original-receipt",
-              "4df051757689327fa3308ed09dc999829b4a17d5"):
+              "407130721c20b17aa1a562c9696613840818a6c6"):
     assert guard in intent, f"unsigned or spoofable R08 intent: {guard}"
 for name in ("r08_signed_audit_first","r08_signed_audit_second"):
     segment = workflow.split("\n  "+name+":",1)[1]
