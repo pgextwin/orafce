@@ -49,13 +49,20 @@ jobs:
         with:
           persist-credentials: false
       - run: python tests/test-issue311-app-local-prepare.py
+      - run: python tests/test-issue311-r06-local-negative-canaries.py
 
   app_local_prepare:
-    if: github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1
+    if: github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && github.event.inputs.central_request_id != 'r-20261030-r06preparelocalskip08'
     name: Original protected PREPARE ZIP verification (NO RELEASE)
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
+      # Exact immutable one-shot PREPARE canary only: actual runner step timeout.
+      # No altered bot identity, no new credentials, no Release or Publisher path.
+      - name: Isolated bounded genuine local timeout (NONPUBLISHING)
+        if: github.event.inputs.central_request_id == 'r-20261030-r06preparelocaltimeout09'
+        timeout-minutes: 1
+        run: python -c "import time; time.sleep(90)"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
