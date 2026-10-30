@@ -112,8 +112,9 @@ for guard in ("needs: app_local_prepare", "needs.app_local_prepare.result == 'su
               "4df051757689327fa3308ed09dc999829b4a17d5"):
     assert guard in intent, f"unsigned or spoofable R08 intent: {guard}"
 for name in ("r08_signed_audit_first","r08_signed_audit_second"):
-    segment = workflow.split("\n  "+name+":",1)[1].split("\n  ",1)[0]
-    assert segment
+    segment = workflow.split("\n  "+name+":",1)[1]
+    assert "needs: [r08_app_signing_intent, r07_windows" in segment
+    assert "attestations: read" in segment
 assert workflow.count("issue311-r08-audit-app-signed-candidate.py") == 2
 assert workflow.count("issue311-r08-join-app-oidc-audits.py") == 1
 assert workflow.count("pattern: orafce-pg*-windows-x64") == 2
