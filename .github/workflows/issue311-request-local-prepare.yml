@@ -81,15 +81,62 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # R08: independent App identity / same-Run receipt / central-cycle intent.
+  # Strictly NO OIDC, signing or Publisher right in this gate.
+  r08_app_signing_intent:
+    name: R08 authenticated original App OIDC signing intent (NO PUBLISH)
+    needs: app_local_prepare
+    if: ${{ github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && needs.app_local_prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          repository: pgextwin/build
+          ref: 4df051757689327fa3308ed09dc999829b4a17d5
+          path: .pgextwin-build
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: issue311-app-local-prepare-original-receipt
+          path: ${{ runner.temp }}/r08-app-original
+      - name: Independent actual App Run + protected SHA + immutable central PREPARE read-only join
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python .pgextwin-build/scripts/issue311-r08-app-oidc-intent.py \
+            --receipt "$RUNNER_TEMP/r08-app-original/issue311-app-local-prepare-receipt.json" \
+            --output "$RUNNER_TEMP/r08-app-intent.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: issue311-r08-app-oidc-intent-nonpublishing
+          path: ${{ runner.temp }}/r08-app-intent.json
+          if-no-files-found: error
+          retention-days: 30
+
   # R07-01: same original App-run, after strict sender/central ZIP admission.
   # Reuse the existing Windows CI reusable build; no signer/Publisher/Release.
   r07_windows:
     name: R07-01 authenticated App original Windows PG14-18
-    if: ${{ github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && needs.app_local_prepare.result == 'success' }}
-    needs: app_local_prepare
+    if: ${{ github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && needs.app_local_prepare.result == 'success' && needs.r08_app_signing_intent.result == 'success' }}
+    needs: [app_local_prepare, r08_app_signing_intent]
     permissions:
       contents: read
-    uses: pgextwin/build/.github/workflows/build-extension.yml@474ae1745c5c570956b39de3d882febad560ea7f
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: pgextwin/build/.github/workflows/build-extension-attested.yml@5756b3c5136a8bf4db710016cfe97555f0a71c6d
     with:
       extension_config_path: config/extension.json
       test_contract_path: config/test-contract.json
@@ -114,3 +161,154 @@ jobs:
         run: |
           test "$R07_APP_LOCAL_RESULT" = success || exit 1
           python3 scripts/required_windows_summary.py
+
+  # R08 independent read-only auditors. Real Sigstore is checked on two
+  # separately downloaded original ZIP/SPDX/Grype byte sets, not copied claims.
+  r08_signed_audit_first:
+    name: R08 first independently verified real App OIDC Sigstore bytes (NO PUBLISH)
+    needs: [r08_app_signing_intent, r07_windows]
+    if: ${{ github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && needs.r08_app_signing_intent.result == 'success' && needs.r07_windows.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          repository: pgextwin/build
+          ref: 4df051757689327fa3308ed09dc999829b4a17d5
+          path: .pgextwin-build
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: issue311-r08-app-oidc-intent-nonpublishing
+          path: ${{ runner.temp }}/r08-intent-first
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: orafce-pg*-windows-x64
+          path: ${{ runner.temp }}/r08-dist-first
+          merge-multiple: true
+      - name: FIRST genuine gh attestation verify of independently downloaded original bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python .pgextwin-build/scripts/issue311-r08-audit-app-signed-candidate.py \
+            --dist "$RUNNER_TEMP/r08-dist-first" \
+            --manifest config/extension.json \
+            --lifecycle .pgextwin-build/metadata/postgresql.json \
+            --intent "$RUNNER_TEMP/r08-intent-first/r08-app-intent.json" \
+            --output "$RUNNER_TEMP/r08-signed-first.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: issue311-r08-signed-first-nonpublishing
+          path: ${{ runner.temp }}/r08-signed-first.json
+          if-no-files-found: error
+          retention-days: 30
+
+  r08_signed_audit_second:
+    name: R08 SECOND independent original-byte OIDC Sigstore verification (NO PUBLISH)
+    needs: [r08_app_signing_intent, r07_windows, r08_signed_audit_first]
+    if: ${{ github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && needs.r08_app_signing_intent.result == 'success' && needs.r07_windows.result == 'success' && needs.r08_signed_audit_first.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          repository: pgextwin/build
+          ref: 4df051757689327fa3308ed09dc999829b4a17d5
+          path: .pgextwin-build
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: issue311-r08-app-oidc-intent-nonpublishing
+          path: ${{ runner.temp }}/r08-intent-second
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: orafce-pg*-windows-x64
+          path: ${{ runner.temp }}/r08-dist-second
+          merge-multiple: true
+      - name: SECOND independent actual gh Sigstore verify on newly downloaded bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python .pgextwin-build/scripts/issue311-r08-audit-app-signed-candidate.py \
+            --dist "$RUNNER_TEMP/r08-dist-second" \
+            --manifest config/extension.json \
+            --lifecycle .pgextwin-build/metadata/postgresql.json \
+            --intent "$RUNNER_TEMP/r08-intent-second/r08-app-intent.json" \
+            --output "$RUNNER_TEMP/r08-signed-second.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: issue311-r08-signed-second-nonpublishing
+          path: ${{ runner.temp }}/r08-signed-second.json
+          if-no-files-found: error
+          retention-days: 30
+
+  r08_dual_audit_join:
+    name: R08 strict independent 2 Sigstore original-byte source agreement (PUBLISH_DENY)
+    needs: [r08_app_signing_intent, r07_windows, r08_signed_audit_first, r08_signed_audit_second]
+    if: ${{ github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && needs.r08_app_signing_intent.result == 'success' && needs.r07_windows.result == 'success' && needs.r08_signed_audit_first.result == 'success' && needs.r08_signed_audit_second.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          repository: pgextwin/build
+          ref: 4df051757689327fa3308ed09dc999829b4a17d5
+          path: .pgextwin-build
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: issue311-r08-signed-first-nonpublishing
+          path: ${{ runner.temp }}/r08-signed-first
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: issue311-r08-signed-second-nonpublishing
+          path: ${{ runner.temp }}/r08-signed-second
+      - name: Strict source/Run/attempt/SBOM/Grype/ZIP agreement (read-only)
+        run: |
+          set -euo pipefail
+          python .pgextwin-build/scripts/issue311-r08-join-app-oidc-audits.py \
+            --first "$RUNNER_TEMP/r08-signed-first/r08-signed-first.json" \
+            --second "$RUNNER_TEMP/r08-signed-second/r08-signed-second.json" \
+            --manifest config/extension.json \
+            --lifecycle .pgextwin-build/metadata/postgresql.json \
+            --output "$RUNNER_TEMP/r08-app-oidc-dual-audit.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: issue311-r08-app-oidc-dual-audit-nonpublishing
+          path: ${{ runner.temp }}/r08-app-oidc-dual-audit.json
+          if-no-files-found: error
+          retention-days: 30
