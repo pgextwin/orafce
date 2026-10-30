@@ -76,7 +76,8 @@ assert workflow.count("\n  r07_windows:") == 1
 assert workflow.count("\n  r07_windows_required:") == 1
 app_windows = workflow.split("\n  r07_windows:", 1)[1].split("\n  r07_windows_required:", 1)[0]
 for guard in (
-    "needs: app_local_prepare",
+    "needs: [app_local_prepare, r08_app_signing_intent]",
+    "needs.r08_app_signing_intent.result == 'success'",
     "needs.app_local_prepare.result == 'success'",
     "github.repository == 'pgextwin/orafce'",
     "github.event_name == 'workflow_dispatch'",
@@ -84,7 +85,8 @@ for guard in (
     "github.actor == 'pgextwin-issue311-prepare-coord[bot]'",
     "github.run_attempt == 1",
     "permissions:\n      contents: read",
-    "build-extension.yml@474ae1745c5c570956b39de3d882febad560ea7f",
+    "build-extension-attested.yml@5756b3c5136a8bf4db710016cfe97555f0a71c6d",
+    "id-token: write", "attestations: write", "artifact-metadata: write",
 ):
     assert guard in app_windows, f"unsafe R07 App-Windows policy: {guard}"
 summary = workflow.split("\n  r07_windows_required:", 1)[1]
@@ -98,3 +100,24 @@ for guard in (
 assert "release create" not in app_windows.lower()
 assert "permissions:\n      contents: write" not in workflow
 print("ISSUE311_R07_APP_WINDOWS_FAIL_CLOSED_NEGATIVE_PASS")
+
+# R08 app OIDC intent must be same original workflow and strictly read-only;
+# the ONLY signing job gets id-token, never a write token or Publisher grant.
+for name in ("r08_app_signing_intent", "r08_signed_audit_first",
+             "r08_signed_audit_second", "r08_dual_audit_join"):
+    assert workflow.count("\n  "+name+":") == 1, f"missing mandatory R08 job {name}"
+intent = workflow.split("\n  r08_app_signing_intent:",1)[1].split("\n  # R07-01:",1)[0]
+for guard in ("needs: app_local_prepare", "needs.app_local_prepare.result == 'success'",
+              "issue311-r08-app-oidc-intent.py", "issue311-app-local-prepare-original-receipt",
+              "4df051757689327fa3308ed09dc999829b4a17d5"):
+    assert guard in intent, f"unsigned or spoofable R08 intent: {guard}"
+for name in ("r08_signed_audit_first","r08_signed_audit_second"):
+    segment = workflow.split("\n  "+name+":",1)[1]
+    assert "needs: [r08_app_signing_intent, r07_windows" in segment
+    assert "attestations: read" in segment
+assert workflow.count("issue311-r08-audit-app-signed-candidate.py") == 2
+assert workflow.count("issue311-r08-join-app-oidc-audits.py") == 1
+assert workflow.count("pattern: orafce-pg*-windows-x64") == 2
+for deny in ("release create", "gh release", "contents: write", "pull-requests: write"):
+    assert deny not in workflow.lower(), f"R08 unauthorized publication path: {deny}"
+print("ISSUE311_R08_APP_OIDC_TWO_REAL_SIGSTORE_JOBS_POLICY_PASS; NO_LIVE_CREDIT")
