@@ -22,7 +22,7 @@ WORKFLOW = ".github/workflows/issue311-r11-event-source.yml"
 SOURCE_KIND = "R11_PROTECTED_OPERATOR_PUSH_INTENT_NONPUBLISHING"
 MODE = "ISSUE_NOTICE_NONPUBLISHING"
 MARKER_PREFIX = "<!-- pgextwin-r11-notice:v1:"
-SHA = re.compile(r"[0-9a-f]{40}\\Z")
+SHA = re.compile(r"[0-9a-f]{40}\Z")
 
 class Denied(ValueError):
     pass
@@ -160,7 +160,7 @@ def main():
             # touched. No retries on lost/ambiguous POST responses.
             ver = ", ".join(str(x["candidate"]["version"]) for x in detected["updates"])
             title = "R11 nonpublishing upstream notice: orafce " + ver[:90]
-            body = "\\n".join([
+            body = "\n".join([
                 result["marker"], "## R11 isolated Issue Writer pilot",
                 "Source-bound operator request: `" + source["requestId"] + "`",
                 "Original GitHub Run: " + str(source["originalRun"]),
@@ -195,7 +195,7 @@ def main():
             "originalRun": source["originalRun"], "requestId": source["requestId"],
             "publicationAuthorized": False, "candidatePrWritten": False,
             "legacyIssueEdited": False, "scheduleRemoved": False})
-        out.write_text(json.dumps(result,sort_keys=True,indent=2)+"\\n",
+        out.write_text(json.dumps(result,sort_keys=True,indent=2)+"\n",
                        encoding="utf-8")
         print("R11_S6_ISSUE_PILOT_" + result["action"] + "_NONPUBLISHING")
         return 0
