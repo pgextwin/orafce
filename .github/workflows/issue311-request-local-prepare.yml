@@ -6,6 +6,14 @@ on:
       - '.github/workflows/issue311-request-local-prepare.yml'
       - 'scripts/issue311-app-local-prepare.py'
       - 'tests/test-issue311-app-local-prepare.py'
+      - 'scripts/issue311-dispatch-input-observation.py'
+      - 'tests/test-issue311-dispatch-input-observation.py'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/issue311-request-local-prepare.yml'
+      - 'scripts/issue311-dispatch-input-observation.py'
+      - 'tests/test-issue311-dispatch-input-observation.py'
   workflow_dispatch:
     inputs:
       request_id:
@@ -41,7 +49,7 @@ concurrency:
 
 jobs:
   offline_policy:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     name: Strict App identity and PREPARE source-kind denial tests
     runs-on: ubuntu-latest
     steps:
@@ -49,9 +57,31 @@ jobs:
         with:
           persist-credentials: false
       - run: python tests/test-issue311-app-local-prepare.py
+      - run: python tests/test-issue311-dispatch-input-observation.py
+
+  dispatch_input_observation:
+    if: github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1
+    name: Retain exact authenticated dispatch inputs before any PREPARE stop (OBSERVATION ONLY)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Retain seven original input bytes, actor, Run and HEAD without granting source admission
+        run: python scripts/issue311-dispatch-input-observation.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue311-dispatch-input-observation
+          path: issue311-dispatch-input-observation.json
+          if-no-files-found: error
+          retention-days: 30
 
   app_local_prepare:
-    if: github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1
+    needs: dispatch_input_observation
+    if: needs.dispatch_input_observation.result == 'success' && github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1
     name: Original protected PREPARE ZIP verification (NO RELEASE)
     runs-on: ubuntu-latest
     timeout-minutes: 18
@@ -312,3 +342,4 @@ jobs:
           path: ${{ runner.temp }}/r08-app-oidc-dual-audit.json
           if-no-files-found: error
           retention-days: 30
+
