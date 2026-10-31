@@ -93,7 +93,7 @@ def validate(config, release, ref, tag, env):
         "classification": "CONTROLLED_INTEGRATION_READONLY_ONLY",
         "repository": REPOSITORY, "upstream": UPSTREAM,
         "originalCiRun": int(env["GITHUB_RUN_ID"]),
-        "originalCiAttempt": 1, "originalCiHead": env["GITHUB_SHA"],
+        "originalCiAttempt": 1, "originalWorkflowCheckoutSha": env["GITHUB_SHA"],
         "sourceEvent": "pull_request",
         "release": TAG, "releaseId": release["id"],
         "releasePublishedAt": release["published_at"],
