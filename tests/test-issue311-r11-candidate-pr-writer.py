@@ -208,7 +208,7 @@ finally:
 denied(lambda: g.NoRedirect().redirect_request(None, None, None, None, None, None))
 
 workflow = Path(".github/workflows/issue311-r11-event-source.yml").read_text()
-job = workflow.split("  candidate_pr_writer:\n", 1)[1]
+job = workflow.split("  candidate_pr_writer:\n", 1)[1].split("  legacy_issue_reconcile:\n", 1)[0]
 assert "intent_mode == 'CANDIDATE_PR_NONPUBLISHING'" in job
 assert "group: candidate-proposer-${{ github.repository }}" in job and "cancel-in-progress: false" in job
 assert "persist-credentials: false" in job and "ref: " + g.CENTRAL in job

@@ -15,6 +15,11 @@ on:
       - "tests/test-issue311-r11-issue-notice-writer.py"
       - "scripts/issue311-r11-candidate-pr-writer.py"
       - "tests/test-issue311-r11-candidate-pr-writer.py"
+      - "scripts/issue311-r11-legacy-issue-adapter.py"
+      - "tests/test-issue311-r11-legacy-issue-adapter.py"
+      - "scripts/issue311-r11-native-candidate-ci.py"
+      - "tests/test-issue311-r11-native-candidate-ci.py"
+      - "docs/issue311-r11-issue-ci-bridge.md"
   push:
     branches: [main]
     paths:
@@ -42,6 +47,8 @@ jobs:
           python tests/test-issue311-r11-nonpublishing-functions.py
           python tests/test-issue311-r11-issue-notice-writer.py
           python tests/test-issue311-r11-candidate-pr-writer.py
+          python tests/test-issue311-r11-legacy-issue-adapter.py
+          python tests/test-issue311-r11-native-candidate-ci.py
 
   source_observation:
     name: Authenticate protected operator push and historic candidate (NO SIGNING)
@@ -73,7 +80,8 @@ jobs:
           assert record["protectedSourceVerified"] is True
           assert mode in ("REQUALIFY_EXISTING_CANDIDATE_NONPUBLISHING",
                           "ISSUE_NOTICE_NONPUBLISHING",
-                          "CANDIDATE_PR_NONPUBLISHING")
+                          "CANDIDATE_PR_NONPUBLISHING",
+                          "ISSUE_RECONCILE_NONPUBLISHING")
           with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
               out.write("intent_mode="+mode+"\n")
           PY
@@ -301,5 +309,95 @@ jobs:
         with:
           name: r11-s6-candidate-pr-writer-receipt
           path: r11-s6-candidate-pr-writer-receipt.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  legacy_issue_reconcile:
+    name: Source-bound existing upstream Issue reconcile (NONPUBLISHING)
+    needs: [source_observation, operator_readonly_functions]
+    if: ${{ needs.source_observation.result == 'success' && needs.operator_readonly_functions.result == 'success' && needs.source_observation.outputs.intent_mode == 'ISSUE_RECONCILE_NONPUBLISHING' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: verified-auto-candidate-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: pgextwin/build
+          ref: 19477b9440ce809fbadbd4fc0c7fadfd40a4a78f
+          path: .pgextwin-build
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: issue311-r11-operator-candidate-original
+          path: r11-source
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: r11-operator-functions-readonly-original
+          path: r11-functions
+      - name: Hostile ownership and create/update/close regression
+        run: python tests/test-issue311-r11-legacy-issue-adapter.py
+      - name: Reauthenticate original source and reconcile only owned legacy Issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/issue311-r11-legacy-issue-adapter.py
+      - name: Preserve original legacy Issue operation receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: r11-source-bound-legacy-issue-receipt
+          path: r11-source-bound-legacy-issue-receipt.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  candidate_native_ci:
+    name: Bind draft candidate to one original native Windows CI (NO RELEASE)
+    needs: [source_observation, operator_readonly_functions, candidate_pr_writer]
+    if: ${{ needs.source_observation.result == 'success' && needs.operator_readonly_functions.result == 'success' && needs.candidate_pr_writer.result == 'success' && needs.source_observation.outputs.intent_mode == 'CANDIDATE_PR_NONPUBLISHING' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    concurrency:
+      group: r11-source-bound-candidate-native-ci-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: issue311-r11-operator-candidate-original
+          path: r11-source
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: r11-operator-functions-readonly-original
+          path: r11-functions
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: r11-s6-candidate-pr-writer-receipt
+          path: r11-writer
+      - name: Hostile candidate/CI join regression
+        run: python tests/test-issue311-r11-native-candidate-ci.py
+      - name: Independent source/PR/branch/manifest readback and one-shot native CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/issue311-r11-native-candidate-ci.py
+      - name: Preserve original native candidate CI run/terminal receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: r11-s6-native-candidate-ci-receipt
+          path: r11-s6-native-candidate-ci-receipt.json
           if-no-files-found: warn
           retention-days: 30

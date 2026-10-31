@@ -82,7 +82,7 @@ def admit(event, env, branch, compare, prs, request, path, blob):
          and path == PREFIX + rid + ".json"
          and type(request["schemaVersion"]) is int and request["schemaVersion"] == 1
          and request["repository"] == REPO and request["sourceKind"] == KIND
-         and request["mode"] in ("REQUALIFY_EXISTING_CANDIDATE_NONPUBLISHING", "ISSUE_NOTICE_NONPUBLISHING", "CANDIDATE_PR_NONPUBLISHING")
+         and request["mode"] in ("REQUALIFY_EXISTING_CANDIDATE_NONPUBLISHING", "ISSUE_NOTICE_NONPUBLISHING", "CANDIDATE_PR_NONPUBLISHING", "ISSUE_RECONCILE_NONPUBLISHING")
          and request["expectedPriorMainSha"] == before
          and type(request["candidatePr"]) is int and request["candidatePr"] > 0
          and isinstance(request["candidateMergeSha"], str)
