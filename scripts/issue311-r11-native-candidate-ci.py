@@ -270,6 +270,8 @@ def main():
                            candidateBranch=name,candidateHead=head,
                            writeOutcomeUnknown=True)
             OUT.write_text(json.dumps(receipt,sort_keys=True)+"\n",encoding="utf-8")
+            need(original.scope_allows(source, "NATIVE_CI_NONPUBLISHING"),
+                 "scope expired before native CI mutation")
             api("POST","actions/workflows/windows.yml/dispatches",{"ref":name})
             receipt["action"]="DISPATCH_ACK_PENDING_ORIGINAL_CI"
             # One dispatch, then bounded read-only polling. No retry of POST.

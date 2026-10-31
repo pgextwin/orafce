@@ -217,6 +217,8 @@ def live_plan():
 
 def execute(context, source, record, receipt, call=api, refresh=None):
     def request(method, path, body=None):
+        if method == "POST" and source.get("intentMode") == "PREPARE_SCOPED_NONPUBLISHING":
+            need(load_source_module().scope_allows(source, MODE), "scope expired before candidate mutation")
         return call(method, path, body, context, receipt)
     def main_guard():
         main = request("GET", "branches/main")
