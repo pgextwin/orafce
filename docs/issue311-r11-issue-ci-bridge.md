@@ -27,6 +27,13 @@ removal, no App Secret, and no auto candidate merge.
   dispatched same-head native CI. After a provider HTTP 204 it retrieves the
   original native Run, its conclusion and required Windows summary.
   It never retries the dispatch POST on transport ambiguity.
+  Immediately before the only POST, a second independent same-head original
+  listing must still be empty. A same-head foreign actor/attempt or duplicate
+  original found during completion polling fails closed. On POST ACK loss,
+  timeout or later poll failure, the job performs at most three GET-only
+  observations (two bounded five-second intervals), then preserves the
+  QUARANTINED receipt even if a single original Run is observed. The record
+  does not authorize another dispatch or establish successful native CI.
   A NO_CHANGE receipt cannot dispatch a workflow.
 
 ## Acceptance limits and recovery
