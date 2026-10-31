@@ -27,7 +27,8 @@ def check(yml):
     assert "persist-credentials: false" in x
     assert not re.search(r"^\s+(issues|contents|pull-requests|actions): write\s*$", x, re.M)
     assert "candidate-update.py propose" not in x
-    assert "scheduleRemoved" not in x and "PUBLISH" not in x
+    assert "scheduleRemoved" not in x and "--action publish" not in x
+    assert '--output "$RUNNER_TEMP/candidate-plan.json"' in x
     assert "r11-operator-functions-readonly-original" in x
 check(body)
 for old,new in (
