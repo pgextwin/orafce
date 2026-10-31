@@ -23,7 +23,7 @@ ENDPOINTS = {
     "ref": "git/ref/tags/" + TAG,
     "tag": "git/tags/" + TAG_OBJECT_SHA,
 }
-SHA = re.compile(r"[0-9a-f]{40}\\Z")
+SHA = re.compile(r"[0-9a-f]{40}\Z")
 
 
 class Denied(ValueError):
