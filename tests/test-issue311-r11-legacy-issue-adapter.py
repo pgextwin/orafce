@@ -91,6 +91,7 @@ wf=Path(".github/workflows/issue311-r11-event-source.yml").read_text("utf-8")
 assert "ISSUE_RECONCILE_NONPUBLISHING" in wf
 assert "legacy_issue_reconcile:" in wf
 assert "issues: write" in wf and "schedule:" not in wf
+assert "group: verified-auto-candidate-${{ github.repository }}" in wf
 assert "workflow_dispatch:" not in wf
 src=Path("scripts/issue311-r11-event-source.py").read_text("utf-8")
 assert "ISSUE_RECONCILE_NONPUBLISHING" in src
