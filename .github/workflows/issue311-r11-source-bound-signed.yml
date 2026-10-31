@@ -10,6 +10,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/issue311-r11-source-bound-signed.yml"
+      # Reaudit when the signed ZIP verifier itself is fixed, as in PR #68.
+      # The original main push is new; never rerun old signing attempts.
+      - "scripts/issue311-r11-source-bound-oidc.py"
 permissions:
   contents: read
 concurrency:
