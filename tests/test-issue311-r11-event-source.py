@@ -150,3 +150,22 @@ for deny in ("gh release", "gh workflow run", "git push", "POST", "PUT"):
 print("R11_AUTHENTIC_SOURCE_NEGATIVES_PASS",len(cases)+len(associated_negative)+4,
       "READ_ONLY_NO_CANDIDATE_NO_SCHEDULE_REMOVAL")
 
+
+# Single authenticated instruction covers Issue + Draft + native CI, never PUBLISH.
+from datetime import datetime, timezone, timedelta
+scoped=copy.deepcopy(base)
+scoped[5].update(schemaVersion=2,mode=g.SCOPED_MODE,
+    scope=sorted(g.STAGE_SCOPES),replayKey=rid,
+    expiresAt=(datetime.now(timezone.utc)+timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+r=decide(scoped)
+assert all(g.scope_allows(r,stage) for stage in g.STAGE_SCOPES)
+assert not g.scope_allows(r,"PUBLISH")
+for changes in ({"scope":["PUBLISH"]},{"scope":["CANDIDATE_PR_NONPUBLISHING"]},
+                {"replayKey":"other"},{"expiresAt":"2020-01-01T00:00:00Z"},
+                {"expiresAt":"invalid"},{"schemaVersion":1}):
+    bad=copy.deepcopy(scoped);bad[5].update(changes)
+    try: decide(bad)
+    except (g.Denied,ValueError,KeyError,TypeError): pass
+    else: raise AssertionError("unsafe single-request scope admitted: "+str(changes))
+assert not g.scope_allows(r,"CANDIDATE_PR_NONPUBLISHING",datetime.now(timezone.utc)+timedelta(days=2))
+print("SINGLE_REQUEST_SCOPES_AND_EXPIRY_DENY_PASS")

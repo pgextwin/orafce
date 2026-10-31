@@ -98,3 +98,18 @@ assert "ISSUE_RECONCILE_NONPUBLISHING" in src
 assert "publisherAuthorized" in src
 print("R11_LEGACY_ISSUE_ADAPTER_HOSTILE_PASS",count,
       "OWNED_MARKER_ONLY_NO_PUBLISH")
+
+# Same immutable authenticated source admits each scoped stage; expired source denies.
+from datetime import datetime, timezone, timedelta
+args=copy.deepcopy(base)
+sc=args[0]
+
+sc.update(intentMode="PREPARE_SCOPED_NONPUBLISHING",requestId="r11-20261031-scoped01",
+          requestedScopes=["ISSUE_RECONCILE_NONPUBLISHING","CANDIDATE_PR_NONPUBLISHING","NATIVE_CI_NONPUBLISHING"],
+          replayKey="r11-20261031-scoped01",
+          expiresAt=(datetime.now(timezone.utc)+timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+g.validate(*args)
+sc["expiresAt"]="2020-01-01T00:00:00Z"
+try: g.validate(*args)
+except (g.Denied,ValueError): pass
+else: raise AssertionError("expired scoped stage passed")

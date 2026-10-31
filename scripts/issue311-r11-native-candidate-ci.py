@@ -91,7 +91,7 @@ def api(method,path,body=None):
 
 def evaluate(source,mode,writer,plan,branch,pr,ref,diff,manifest,runs,env):
     need(source.get("protectedSourceVerified") is True
-         and source.get("intentMode")=="CANDIDATE_PR_NONPUBLISHING"
+         and load("issue311-r11-event-source.py").scope_allows(source, "NATIVE_CI_NONPUBLISHING")
          and source.get("repository")==REPO
          and type(source.get("originalRun")) is int
          and source.get("attempt")==1
@@ -270,6 +270,8 @@ def main():
                            candidateBranch=name,candidateHead=head,
                            writeOutcomeUnknown=True)
             OUT.write_text(json.dumps(receipt,sort_keys=True)+"\n",encoding="utf-8")
+            need(original.scope_allows(source, "NATIVE_CI_NONPUBLISHING"),
+                 "scope expired before native CI mutation")
             api("POST","actions/workflows/windows.yml/dispatches",{"ref":name})
             receipt["action"]="DISPATCH_ACK_PENDING_ORIGINAL_CI"
             # One dispatch, then bounded read-only polling. No retry of POST.

@@ -81,7 +81,7 @@ jobs:
           assert mode in ("REQUALIFY_EXISTING_CANDIDATE_NONPUBLISHING",
                           "ISSUE_NOTICE_NONPUBLISHING",
                           "CANDIDATE_PR_NONPUBLISHING",
-                          "ISSUE_RECONCILE_NONPUBLISHING")
+                          "ISSUE_RECONCILE_NONPUBLISHING", "PREPARE_SCOPED_NONPUBLISHING")
           with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
               out.write("intent_mode="+mode+"\n")
           PY
@@ -264,7 +264,7 @@ jobs:
   candidate_pr_writer:
     name: Source-bound create-only draft candidate PR (NO DISPATCH OR RELEASE)
     needs: [source_observation, operator_readonly_functions]
-    if: ${{ needs.source_observation.result == 'success' && needs.operator_readonly_functions.result == 'success' && needs.source_observation.outputs.intent_mode == 'CANDIDATE_PR_NONPUBLISHING' }}
+    if: ${{ needs.source_observation.result == 'success' && needs.operator_readonly_functions.result == 'success' && (needs.source_observation.outputs.intent_mode == 'CANDIDATE_PR_NONPUBLISHING' || needs.source_observation.outputs.intent_mode == 'PREPARE_SCOPED_NONPUBLISHING') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -315,7 +315,7 @@ jobs:
   legacy_issue_reconcile:
     name: Source-bound existing upstream Issue reconcile (NONPUBLISHING)
     needs: [source_observation, operator_readonly_functions]
-    if: ${{ needs.source_observation.result == 'success' && needs.operator_readonly_functions.result == 'success' && needs.source_observation.outputs.intent_mode == 'ISSUE_RECONCILE_NONPUBLISHING' }}
+    if: ${{ needs.source_observation.result == 'success' && needs.operator_readonly_functions.result == 'success' && (needs.source_observation.outputs.intent_mode == 'ISSUE_RECONCILE_NONPUBLISHING' || needs.source_observation.outputs.intent_mode == 'PREPARE_SCOPED_NONPUBLISHING') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -361,7 +361,7 @@ jobs:
   candidate_native_ci:
     name: Bind draft candidate to one original native Windows CI (NO RELEASE)
     needs: [source_observation, operator_readonly_functions, candidate_pr_writer]
-    if: ${{ needs.source_observation.result == 'success' && needs.operator_readonly_functions.result == 'success' && needs.candidate_pr_writer.result == 'success' && needs.source_observation.outputs.intent_mode == 'CANDIDATE_PR_NONPUBLISHING' }}
+    if: ${{ needs.source_observation.result == 'success' && needs.operator_readonly_functions.result == 'success' && needs.candidate_pr_writer.result == 'success' && (needs.source_observation.outputs.intent_mode == 'CANDIDATE_PR_NONPUBLISHING' || needs.source_observation.outputs.intent_mode == 'PREPARE_SCOPED_NONPUBLISHING') }}
     runs-on: ubuntu-latest
     timeout-minutes: 80
     concurrency:

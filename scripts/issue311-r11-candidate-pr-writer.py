@@ -55,7 +55,7 @@ def blob_sha(raw):
 
 def bind(source, regenerated, mode, env):
     need(source == regenerated and source.get("protectedSourceVerified") is True
-         and source.get("repository") == REPO and source.get("intentMode") == MODE
+         and source.get("repository") == REPO and load_source_module().scope_allows(source, MODE)
          and source.get("sourceKind") == "R11_PROTECTED_OPERATOR_PUSH_INTENT_NONPUBLISHING"
          and source.get("attempt") == 1
          and type(source.get("originalRun")) is int
@@ -217,6 +217,8 @@ def live_plan():
 
 def execute(context, source, record, receipt, call=api, refresh=None):
     def request(method, path, body=None):
+        if method == "POST" and source.get("intentMode") == "PREPARE_SCOPED_NONPUBLISHING":
+            need(load_source_module().scope_allows(source, MODE), "scope expired before candidate mutation")
         return call(method, path, body, context, receipt)
     def main_guard():
         main = request("GET", "branches/main")

@@ -70,7 +70,7 @@ def get(path):
 def validate(source, mode, detected, dry, fresh, run, branch, issues, env, central):
     need(type(source) is dict and source.get("sourceKind") ==
          "R11_PROTECTED_OPERATOR_PUSH_INTENT_NONPUBLISHING"
-         and source.get("intentMode") == MODE
+         and source_module().scope_allows(source, MODE)
          and source.get("repository") == REPO
          and source.get("protectedSourceVerified") is True
          and type(source.get("originalRun")) is int and source["originalRun"] > 0
