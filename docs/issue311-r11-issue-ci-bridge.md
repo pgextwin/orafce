@@ -40,7 +40,7 @@ old/new Writer conflict. The 80-minute job and 80 bounded run polls are finite.
 A GitHub API or native CI failure keeps the receipt quarantined and must be
 reviewed before a new separately authorized request; no blind resubmission.
 
-Issue changes are not atomic with the legacy schedule writer. A scoped
+Issue updates share the old update-watch workflow's verified-auto-candidate concurrency group (cancel-in-progress false), but this is not an atomic cross-provider CAS. A scoped
 current-HEAD recheck, unique owner predicate and shared GitHub Issue identity
 reduce risk but do not prove a distributed CAS or real old/new concurrency.
 Neither the new Issue receipt nor candidate CI receipt is durable App CAS.
