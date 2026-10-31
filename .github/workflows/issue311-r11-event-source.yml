@@ -1,0 +1,52 @@
+name: R11 operator source admission pilot (NONPUBLISHING)
+# No schedule replacement, fake schedule, extra clock, or write token.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue311-r11-event-source.yml"
+      - "scripts/issue311-r11-event-source.py"
+      - "tests/test-issue311-r11-event-source.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/issue311-r11-intents/*.json"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  offline_negatives:
+    name: R11 strict event source negative tests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python tests/test-issue311-r11-event-source.py
+
+  source_observation:
+    name: Authenticate exact protected operator PR/push only (NO CANDIDATE)
+    if: github.repository == 'pgextwin/orafce' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor == 'ShutenOishi' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Authenticate real protected push and exact immutable one-file intent
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/issue311-r11-event-source.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: issue311-r11-protected-operator-source
+          path: issue311-r11-source-admission.json
+          if-no-files-found: error
+          retention-days: 30
