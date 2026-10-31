@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "requestId": "r11-20261031-scopedlive01",
+  "repository": "pgextwin/orafce",
+  "sourceKind": "R11_PROTECTED_OPERATOR_PUSH_INTENT_NONPUBLISHING",
+  "mode": "PREPARE_SCOPED_NONPUBLISHING",
+  "expectedPriorMainSha": "f9768186c6d5aa8f739036a25756806a02a4a1f2",
+  "candidatePr": 8,
+  "candidateMergeSha": "9f09147b86703efd09e1ae1d5b23bd6c92c6b9b2",
+  "runtimeEnabled": false,
+  "publisherAuthorized": false,
+  "scope": [
+    "ISSUE_RECONCILE_NONPUBLISHING",
+    "CANDIDATE_PR_NONPUBLISHING",
+    "NATIVE_CI_NONPUBLISHING"
+  ],
+  "replayKey": "r11-20261031-scopedlive01",
+  "expiresAt": "2026-10-31T17:14:53Z"
+}
