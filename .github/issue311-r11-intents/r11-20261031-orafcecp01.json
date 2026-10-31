@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "requestId": "r11-20261031-orafcecp01",
+  "repository": "pgextwin/orafce",
+  "sourceKind": "R11_PROTECTED_OPERATOR_PUSH_INTENT_NONPUBLISHING",
+  "mode": "CANDIDATE_PR_NONPUBLISHING",
+  "expectedPriorMainSha": "fa051840638fd0bf2e64ee351e3a1867edf5c16b",
+  "candidatePr": 8,
+  "candidateMergeSha": "9f09147b86703efd09e1ae1d5b23bd6c92c6b9b2",
+  "runtimeEnabled": false,
+  "publisherAuthorized": false
+}
