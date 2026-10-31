@@ -8,6 +8,8 @@ on:
       - "tests/test-issue311-r11-event-source.py"
       - "scripts/issue311-r11-candidate-adapter.py"
       - "tests/test-issue311-r11-candidate-adapter.py"
+      - "scripts/issue311-r11-central-source.py"
+      - "tests/test-issue311-r11-central-source.py"
   push:
     branches: [main]
     paths:
@@ -31,6 +33,7 @@ jobs:
       - run: |
           python tests/test-issue311-r11-event-source.py
           python tests/test-issue311-r11-candidate-adapter.py
+          python tests/test-issue311-r11-central-source.py
 
   source_observation:
     name: Authenticate protected operator push and historic candidate (NO SIGNING)
@@ -61,6 +64,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python scripts/issue311-r11-candidate-adapter.py
+      - name: Bind real historical central original fleet snapshot and candidate (NO SIGNING)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/issue311-r11-central-source.py
       - name: Preserve original authenticated source and candidate metadata (NONPUBLISHING)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -68,5 +75,6 @@ jobs:
           path: |
             issue311-r11-source-admission.json
             issue311-r11-candidate-admission.json
+            issue311-r11-central-original.json
           if-no-files-found: error
           retention-days: 30
