@@ -158,5 +158,47 @@ for wrong in ("../VERSION_4_17_1","VERSION_4_17_1/../bad","v4.17.1","VERSION_4_1
     except (g.Denied, TypeError, ValueError): continue
     raise AssertionError("unsafe signed file prefix accepted")
 
+# Independent auditors may finish after another genuinely protected main merge.
+# All input objects here are synthetic; this does NOT prove live Sigstore.
+assert g.audit_signed_main_lineage(root, branch, HEAD, 9021) == "SIGNED_HEAD_CURRENT"
+later = "b"*40
+descendant = copy.deepcopy(branch)
+descendant["commit"]["sha"] = later
+lineage = {"status":"ahead","ahead_by":1,"behind_by":0,
+           "base_commit":{"sha":HEAD},"merge_base_commit":{"sha":HEAD},
+           "commits":[{"sha":later}]}
+assert g.audit_signed_main_lineage(root, descendant, HEAD, 9021, lineage) == (
+       "SIGNED_HEAD_PROTECTED_ANCESTOR")
+lineage_negative = [
+    ("no authenticated compare", None, None, None),
+    ("unrelated history", {"status":"diverged"}, None, None),
+    ("backward history", {"behind_by":1}, None, None),
+    ("wrong base", {"base_commit":{"sha":"c"*40}}, None, None),
+    ("wrong merge base", {"merge_base_commit":{"sha":"c"*40}}, None, None),
+    ("wrong last commit", {"commits":[{"sha":"c"*40}]}, None, None),
+    ("unbounded distance", {"ahead_by":21}, None, None),
+    ("unprotected branch", None, ("protected",False), None),
+    ("wrong required App", None, ("protection.required_status_checks.checks.0.app_id",1), None),
+    ("source run attempt2", None, None, ("run_attempt",2)),
+    ("source run completed", None, None, ("status","completed")),
+]
+for title, delta, bad_branch, bad_run in lineage_negative:
+    cp=copy.deepcopy(lineage) if delta is not None or bad_branch or bad_run else None
+    bb=copy.deepcopy(descendant)
+    rr=copy.deepcopy(root)
+    if delta is not None:
+        cp.update(delta)
+    if bad_branch:
+        key,value=bad_branch
+        obj=bb; keys=key.split(".")
+        for part in keys[:-1]:
+            obj=obj[int(part)] if part.isdigit() else obj[part]
+        obj[keys[-1]]=value
+    if bad_run:
+        rr[bad_run[0]]=bad_run[1]
+    try: g.audit_signed_main_lineage(rr,bb,HEAD,9021,cp)
+    except (g.Denied,ValueError,KeyError,TypeError): pass
+    else: raise AssertionError("invalid protected signer lineage admitted: "+title)
+
 print("R11_SOURCE_BOUND_HOSTILE_PASS",len(cases)+8+6,
       "synthetic_only_NO_SCHEDULE_NO_APP_CAS_NO_PUBLISH")
