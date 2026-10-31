@@ -20,6 +20,8 @@ on:
       - "scripts/issue311-r11-native-candidate-ci.py"
       - "tests/test-issue311-r11-native-candidate-ci.py"
       - "docs/issue311-r11-issue-ci-bridge.md"
+      - "scripts/issue311-r11-controlled-upstream.py"
+      - "tests/test-issue311-r11-controlled-upstream.py"
   push:
     branches: [main]
     paths:
@@ -49,6 +51,18 @@ jobs:
           python tests/test-issue311-r11-candidate-pr-writer.py
           python tests/test-issue311-r11-legacy-issue-adapter.py
           python tests/test-issue311-r11-native-candidate-ci.py
+          python tests/test-issue311-r11-controlled-upstream.py
+      - name: Original authenticated upstream Release and annotated tag GETs (READ ONLY)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/issue311-r11-controlled-upstream.py
+      - name: Preserve true upstream read-only original receipt
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: r11-controlled-true-upstream-readonly-original
+          path: r11-controlled-upstream-readonly-original.json
+          if-no-files-found: error
+          retention-days: 30
 
   source_observation:
     name: Authenticate protected operator push and historic candidate (NO SIGNING)
