@@ -1,0 +1,158 @@
+name: R11 immutable original operator-source OIDC signing pilot (NONPUBLISHING)
+# No schedule, dispatch, App key, Writer or Publisher. One protected-main feature push.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue311-r11-source-bound-signed.yml"
+      - "scripts/issue311-r11-source-bound-oidc.py"
+      - "tests/test-issue311-r11-source-bound-oidc.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/issue311-r11-source-bound-signed.yml"
+permissions:
+  contents: read
+concurrency:
+  group: r11-source-bound-oidc-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  hostile:
+    name: R11 source, signer and dual-audit hostile tests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python tests/test-issue311-r11-source-bound-oidc.py
+
+  source_gate:
+    name: GET real original 41163177685 bytes and protected main gate (READ ONLY)
+    if: >-
+      ${{ github.repository == 'pgextwin/orafce' &&
+           github.event_name == 'push' &&
+           github.ref == 'refs/heads/main' &&
+           github.actor == 'ShutenOishi' &&
+           github.run_attempt == 1 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+    outputs:
+      verified: ${{ steps.eligible.outputs.verified }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Hostile regression and source integrity checks
+        run: python tests/test-issue311-r11-source-bound-oidc.py
+      - name: Authenticate immutable original ZIP, protected main and new Run
+        id: eligible
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python scripts/issue311-r11-source-bound-oidc.py source
+          echo "verified=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: r11-source-bound-eligibility-nonpublishing
+          path: issue311-r11-oidc-eligibility.json
+          if-no-files-found: error
+          retention-days: 30
+
+  signed_windows:
+    name: New genuine OIDC Windows PG14-18 (NONPUBLISHING)
+    needs: source_gate
+    if: needs.source_gate.outputs.verified == 'true'
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: pgextwin/build/.github/workflows/build-extension-attested.yml@5756b3c5136a8bf4db710016cfe97555f0a71c6d
+    with:
+      extension_config_path: config/extension.json
+      test_contract_path: config/test-contract.json
+
+  independent_audit:
+    name: Original signed ZIP Sigstore re-download (${{ matrix.auditor }})
+    needs: [source_gate, signed_windows]
+    if: needs.source_gate.outputs.verified == 'true' && needs.signed_windows.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        auditor: [first, second]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: r11-source-bound-eligibility-nonpublishing
+          path: ${{ runner.temp }}/r11-intent
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: orafce-pg*-windows-x64
+          path: ${{ runner.temp }}/r11-signed-dist
+          merge-multiple: true
+      - name: Independent REAL gh Sigstore SLSA and SPDX verify per ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PGEXTWIN_AUDIT_INSTANCE: ${{ matrix.auditor }}
+        run: |
+          set -euo pipefail
+          python scripts/issue311-r11-source-bound-oidc.py audit \
+            --dist "$RUNNER_TEMP/r11-signed-dist" \
+            --intent "$RUNNER_TEMP/r11-intent/issue311-r11-oidc-eligibility.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: r11-source-bound-sigstore-${{ matrix.auditor }}-nonpublishing
+          path: r11-source-bound-sigstore-${{ matrix.auditor }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  join:
+    name: Require two truly independent source/PG/Sigstore byte receipts (DENY-only)
+    needs: [source_gate, signed_windows, independent_audit]
+    if: needs.independent_audit.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: r11-source-bound-sigstore-first-nonpublishing
+          path: ${{ runner.temp }}/first
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: r11-source-bound-sigstore-second-nonpublishing
+          path: ${{ runner.temp }}/second
+      - name: Match new signed bytes and immutable original source
+        run: |
+          set -euo pipefail
+          python scripts/issue311-r11-source-bound-oidc.py join \
+            --first "$RUNNER_TEMP/first/r11-source-bound-sigstore-first.json" \
+            --second "$RUNNER_TEMP/second/r11-source-bound-sigstore-second.json"
+          echo "NEW genuine OIDC PG14-18, two independent Sigstore receipts; PUBLISH_DENY / CAS NOT DONE / schedule retained" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: r11-source-bound-dual-sigstore-nonpublishing
+          path: r11-source-bound-dual-sigstore.json
+          if-no-files-found: error
+          retention-days: 30
