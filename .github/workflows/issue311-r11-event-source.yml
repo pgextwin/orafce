@@ -10,6 +10,7 @@ on:
       - "tests/test-issue311-r11-candidate-adapter.py"
       - "scripts/issue311-r11-central-source.py"
       - "tests/test-issue311-r11-central-source.py"
+      - "tests/test-issue311-r11-nonpublishing-functions.py"
   push:
     branches: [main]
     paths:
@@ -34,6 +35,7 @@ jobs:
           python tests/test-issue311-r11-event-source.py
           python tests/test-issue311-r11-candidate-adapter.py
           python tests/test-issue311-r11-central-source.py
+          python tests/test-issue311-r11-nonpublishing-functions.py
 
   source_observation:
     name: Authenticate protected operator push and historic candidate (NO SIGNING)
@@ -76,5 +78,114 @@ jobs:
             issue311-r11-source-admission.json
             issue311-r11-candidate-admission.json
             issue311-r11-central-original.json
+          if-no-files-found: error
+          retention-days: 30
+
+
+  # Existing central Python code is executed on an immutable checkout.
+  # Calling its legacy reusable workflows would request write scopes even
+  # with dry_run, so this pilot runs only bounded read-only steps directly.
+  operator_readonly_functions:
+    name: Authenticated operator-only read-only watch, Issue check and candidate plan
+    needs: source_observation
+    if: ${{ needs.source_observation.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      issues: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: pgextwin/build
+          ref: 19477b9440ce809fbadbd4fc0c7fadfd40a4a78f
+          path: .pgextwin-build
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Source-bound read-only fleet watch admission
+        id: watch_gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python .pgextwin-build/scripts/fleet-control.py
+          --extension config/extension.json --watch config/update-watch.json
+          --repository "$GITHUB_REPOSITORY" --action watch
+      - name: Verify watch schema and upstream candidate (GET ONLY)
+        if: steps.watch_gate.outputs.allowed == 'true'
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "jsonschema>=4,<5"
+          python .pgextwin-build/scripts/validate-update-watch.py \
+            --extension-config config/extension.json --watch-config config/update-watch.json \
+            --schema .pgextwin-build/schema/update-watch.schema.json
+          python .pgextwin-build/scripts/check-upstream-update.py \
+            --extension-config config/extension.json --watch-config config/update-watch.json \
+            --output "$RUNNER_TEMP/update-result.json" \
+            --watcher-repository pgextwin/build \
+            --watcher-sha 19477b9440ce809fbadbd4fc0c7fadfd40a4a78f
+      - name: Dry-run Issue reconciliation (no write scope)
+        if: steps.detect.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python .pgextwin-build/scripts/reconcile-update-issue.py \
+            --result "$RUNNER_TEMP/update-result.json" \
+            --repository "$GITHUB_REPOSITORY" \
+            --output "$RUNNER_TEMP/reconcile-result.json" --dry-run
+      - name: Read-only candidate policy authorization
+        id: candidate_gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python .pgextwin-build/scripts/fleet-control.py
+          --extension config/extension.json --watch config/update-watch.json
+          --repository "$GITHUB_REPOSITORY" --action candidate
+          --candidate-policy config/candidate-build.json
+      - name: Compute immutable candidate plan, NEVER invoke propose
+        if: steps.candidate_gate.outputs.allowed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python .pgextwin-build/scripts/candidate-update.py plan
+          --extension config/extension.json
+          --watch config/update-watch.json
+          --policy config/candidate-build.json
+          --lifecycle .pgextwin-build/metadata/postgresql.json
+          --output "$RUNNER_TEMP/candidate-plan.json"
+      - name: Store only read-only decision receipts
+        if: always() && needs.source_observation.result == 'success'
+        run: |
+          python - <<'PY'
+          import os,json,pathlib,shutil
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])
+          dst=pathlib.Path("r11-functional-readonly-receipts")
+          dst.mkdir(exist_ok=True)
+          for name in ("update-result.json","reconcile-result.json","candidate-plan.json"):
+              src=root/name
+              if src.is_file():
+                  shutil.copyfile(src,dst/name)
+          (dst/"mode.json").write_text(json.dumps({
+              "mode":"NONPUBLISHING_READONLY",
+              "originalRun":int(os.environ["GITHUB_RUN_ID"]),
+              "originalHead":os.environ["GITHUB_SHA"],
+              "publicationAuthorized":False,
+              "writerCalled":False},sort_keys=True)+"\n")
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && needs.source_observation.result == 'success'
+        with:
+          name: r11-operator-functions-readonly-original
+          path: r11-functional-readonly-receipts/
           if-no-files-found: error
           retention-days: 30
