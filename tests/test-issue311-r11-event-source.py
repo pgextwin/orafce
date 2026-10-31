@@ -85,6 +85,50 @@ for index,chain,value in cases:
     except (g.Denied, ValueError, TypeError, KeyError):
         continue
     raise AssertionError("unsafe admission case: "+str((index,chain)))
+# Commit-associated PR REST listing is NOT full /pulls/{number} metadata.
+# The exact full PR must be fetched separately; never invent merged fields.
+full=copy.deepcopy(pr)
+full["head"]={"sha":"e"*40}
+association={"number":pr["number"],"state":"closed",
+             "merge_commit_sha":after,
+             "head":{"sha":"e"*40},
+             "base":{"ref":"main","repo":{"full_name":g.REPO}}}
+assert g.bind_full_pr([association],full,after)==[full]
+associated_negative=[
+ (0,["number"],1),
+ (0,["state"],"open"),
+ (0,["merge_commit_sha"],"f"*40),
+ (0,["head","sha"],"f"*40),
+ (0,["base","ref"],"develop"),
+ (0,["base","repo","full_name"],"other/repo"),
+ (1,["number"],1),
+ (1,["merge_commit_sha"],"f"*40),
+ (1,["head","sha"],"f"*40),
+ (1,["base","ref"],"develop"),
+ (1,["base","repo","full_name"],"other/repo"),
+ (1,["merged"],False),
+]
+for idx,chain,wrong in associated_negative:
+    args=[copy.deepcopy(association),copy.deepcopy(full)]
+    item=args[idx]
+    for part in chain[:-1]:
+        item=item[part]
+    item[chain[-1]]=wrong
+    try:
+        g.bind_full_pr([args[0]],args[1],after)
+    except (g.Denied,ValueError,TypeError,KeyError):
+        continue
+    raise AssertionError("forged associated/full PR passed "+str((idx,chain)))
+for bad in ([],[association,association],[{}],None):
+    try:
+        g.bind_full_pr(bad,full,after)
+    except (g.Denied,TypeError,ValueError,KeyError):
+        continue
+    raise AssertionError("ambiguous association accepted")
+# Explicit allowlist remains restricted to single authenticated full PR GET.
+assert "per_page=100|pulls/[1-9][0-9]*|contents/" in Path(
+    "scripts/issue311-r11-event-source.py").read_text()
+
 wf=Path(".github/workflows/issue311-r11-event-source.yml").read_text()
 assert "schedule:" not in wf and "workflow_dispatch:" not in wf
 assert "contents: write" not in wf and "pull-requests: write" not in wf
@@ -93,5 +137,5 @@ assert "GH_TOKEN:" in wf
 source=Path("scripts/issue311-r11-event-source.py").read_text()
 for deny in ("gh release", "gh workflow run", "git push", "POST", "PUT"):
     assert deny not in source
-print("R11_AUTHENTIC_SOURCE_NEGATIVES_PASS",len(cases),
+print("R11_AUTHENTIC_SOURCE_NEGATIVES_PASS",len(cases)+len(associated_negative)+4,
       "READ_ONLY_NO_CANDIDATE_NO_SCHEDULE_REMOVAL")

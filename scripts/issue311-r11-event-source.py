@@ -99,8 +99,34 @@ def admit(event, env, branch, compare, prs, request, path, blob):
             "appCasPerformed":False, "scheduleRemoved":False,
             "publicationAuthorized":False, "runtimeEnabled":False}
 
+def bind_full_pr(associated, full, after):
+    """Bind unique commit-associated PR to independent full /pulls/{number} GET.
+
+    The commits/{sha}/pulls listing omits merged and merged_by; those fields
+    must be checked on independently authenticated full PR metadata.
+    """
+    need(isinstance(associated, list) and len(associated) == 1
+         and isinstance(associated[0], dict), "ambiguous associated PR")
+    item = associated[0]
+    number = item.get("number")
+    need(type(number) is int and number > 0
+         and item.get("merge_commit_sha") == after
+         and item.get("state") == "closed"
+         and (item.get("base") or {}).get("ref") == "main"
+         and (item.get("base") or {}).get("repo", {}).get("full_name") == REPO,
+         "associated original PR mismatch")
+    need(isinstance(full, dict) and full.get("number") == number
+         and full.get("merge_commit_sha") == after
+         and full.get("merged") is True
+         and (full.get("head") or {}).get("sha")
+             == (item.get("head") or {}).get("sha")
+         and (full.get("base") or {}).get("ref") == "main"
+         and (full.get("base") or {}).get("repo", {}).get("full_name") == REPO,
+         "independently fetched PR detail mismatch")
+    return [full]
+
 def get(endpoint):
-    need(re.fullmatch(r"(branches/main|compare/[0-9a-f]{40}\.\.\.[0-9a-f]{40}|commits/[0-9a-f]{40}/pulls\?per_page=100|contents/\.github/issue311-r11-intents/r11-[0-9]{8}-[a-z0-9]{8,32}\.json\?ref=[0-9a-f]{40})", endpoint), "GET not allowlisted")
+    need(re.fullmatch(r"(branches/main|compare/[0-9a-f]{40}\.\.\.[0-9a-f]{40}|commits/[0-9a-f]{40}/pulls\?per_page=100|pulls/[1-9][0-9]*|contents/\.github/issue311-r11-intents/r11-[0-9]{8}-[a-z0-9]{8,32}\.json\?ref=[0-9a-f]{40})", endpoint), "GET not allowlisted")
     need(bool(os.environ.get("GH_TOKEN")), "missing scoped GET credentials")
     p = subprocess.run(["gh","api","--method","GET","repos/"+REPO+"/"+endpoint],
                        capture_output=True, text=True, timeout=40, check=False)
@@ -127,9 +153,14 @@ def main():
         need(0 < len(original) < 8192, "invalid immutable source length")
         blob = hashlib.sha1(b"blob "+str(len(original)).encode()+b"\0"+original).hexdigest()
         need(blob==item.get("sha"), "original content blob mismatch")
+        associated = get("commits/"+after+"/pulls?per_page=100")
+        need(isinstance(associated, list) and len(associated) == 1
+             and type(associated[0].get("number")) is int
+             and associated[0]["number"] > 0, "no unique associated PR")
+        full = get("pulls/" + str(associated[0]["number"]))
+        linked = bind_full_pr(associated, full, after)
         receipt = admit(event, os.environ, get("branches/main"), compare,
-                        get("commits/"+after+"/pulls?per_page=100"),
-                        decode(original.decode("utf-8")), path, blob)
+                        linked, decode(original.decode("utf-8")), path, blob)
         Path("issue311-r11-source-admission.json").write_text(
             json.dumps(receipt, sort_keys=True,separators=(",",":"))+"\n",encoding="utf-8")
         print("R11_AUTHENTIC_OPERATOR_SOURCE_ONLY; CANDIDATE_AND_PUBLISH_DENY")
