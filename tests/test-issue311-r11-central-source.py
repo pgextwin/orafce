@@ -148,8 +148,11 @@ for idx, path, wrong in cases:
     raise AssertionError(f"hostile central source admitted: {idx} {path}")
 wf = Path(".github/workflows/issue311-r11-event-source.yml").read_text()
 assert "schedule:" not in wf and "workflow_dispatch:" not in wf
-assert "id-token: write" not in wf and "contents: write" not in wf
+source_job = wf.split("  source_observation:\n", 1)[1].split("  operator_readonly_functions:\n", 1)[0]
+assert "contents: write" not in source_job and "pull-requests: write" not in source_job
+assert "id-token: write" not in wf
 assert "issue311-r11-central-source.py" in wf
 assert "issue311-r11-central-original.json" in wf
 print("R11_CENTRAL_ORIGINAL_HOSTILE_PASS", len(cases),
       "HISTORICAL_ONLY_NO_SIGNER_NO_CAS_NO_PUBLISH")
+

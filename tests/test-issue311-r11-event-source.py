@@ -31,6 +31,13 @@ request={"schemaVersion":1,"requestId":rid,"repository":g.REPO,"sourceKind":g.KI
 base=[event,env,main,compare,[pr],request,path,blob]
 def decide(a):
     return g.admit(*a)
+# A distinct candidate mode is admitted only by the same strict human source
+# contract; the receipt itself still performs no writes or publication.
+for allowed_mode in ("ISSUE_NOTICE_NONPUBLISHING", "CANDIDATE_PR_NONPUBLISHING"):
+    candidate_args=copy.deepcopy(base)
+    candidate_args[5]["mode"]=allowed_mode
+    result=decide(candidate_args)
+    assert result["intentMode"] == allowed_mode and result["candidateWriterCalled"] is False
 receipt=decide(base)
 assert receipt["protectedSourceVerified"] is True
 for k in ("candidateVerified","candidateWriterCalled","signingPerformed",
@@ -131,7 +138,10 @@ assert "per_page=100|pulls/[1-9][0-9]*|contents/" in Path(
 
 wf=Path(".github/workflows/issue311-r11-event-source.yml").read_text()
 assert "schedule:" not in wf and "workflow_dispatch:" not in wf
-assert "contents: write" not in wf and "pull-requests: write" not in wf
+# Source authentication remains read-only; write scopes belong only to a
+# distinct source-bound Writer job, never to source_observation.
+source_job=wf.split("  source_observation:\n",1)[1].split("  operator_readonly_functions:\n",1)[0]
+assert "contents: write" not in source_job and "pull-requests: write" not in source_job
 assert "issue311-r11-intents/*.json" in wf
 assert "GH_TOKEN:" in wf
 source=Path("scripts/issue311-r11-event-source.py").read_text()
@@ -139,3 +149,4 @@ for deny in ("gh release", "gh workflow run", "git push", "POST", "PUT"):
     assert deny not in source
 print("R11_AUTHENTIC_SOURCE_NEGATIVES_PASS",len(cases)+len(associated_negative)+4,
       "READ_ONLY_NO_CANDIDATE_NO_SCHEDULE_REMOVAL")
+

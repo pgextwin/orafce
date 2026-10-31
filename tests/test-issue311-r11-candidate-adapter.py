@@ -112,10 +112,13 @@ for index,chain,value in cases:
  raise AssertionError("unsafe accepted input "+str((index,chain)))
 wf=Path(".github/workflows/issue311-r11-event-source.yml").read_text()
 assert "schedule:" not in wf and "workflow_dispatch:" not in wf
-assert "contents: write" not in wf and "pull-requests: write" not in wf
+source_job = wf.split("  source_observation:\n", 1)[1].split("  operator_readonly_functions:\n", 1)[0]
+assert "contents: write" not in source_job and "pull-requests: write" not in source_job
+assert "id-token: write" not in wf
 assert "id-token: write" not in wf
 assert "issue311-r11-candidate-adapter.py" in wf
 assert "issue311-r11-candidate-admission.json" in wf
 assert g.CENTRAL_SHA in wf
 print("R11_CANDIDATE_ADAPTER_HOSTILE_PASS",len(cases),
       "NO_WRITER_NO_SIGNER_NO_CAS_NO_PUBLISH")
+
