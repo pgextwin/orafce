@@ -10,7 +10,7 @@ def check(yml):
     assert '      - ".github/issue311-r11-intents/*.json"' in yml
     assert "github.actor == 'ShutenOishi'" in yml and "github.run_attempt == 1" in yml
     assert "Authentic" not in yml or "R11" in yml
-    m=re.search(r"(?ms)^  operator_readonly_functions:\n(.*)\Z",yml)
+    m=re.search(r"(?ms)^  operator_readonly_functions:\n(.*?)(?=^  [a-z][a-z0-9_]*:\n|\Z)",yml)
     assert m
     x=m.group(1)
     assert "needs: source_observation" in x

@@ -82,7 +82,7 @@ def admit(event, env, branch, compare, prs, request, path, blob):
          and path == PREFIX + rid + ".json"
          and type(request["schemaVersion"]) is int and request["schemaVersion"] == 1
          and request["repository"] == REPO and request["sourceKind"] == KIND
-         and request["mode"] == "REQUALIFY_EXISTING_CANDIDATE_NONPUBLISHING"
+         and request["mode"] in ("REQUALIFY_EXISTING_CANDIDATE_NONPUBLISHING", "ISSUE_NOTICE_NONPUBLISHING")
          and request["expectedPriorMainSha"] == before
          and type(request["candidatePr"]) is int and request["candidatePr"] > 0
          and isinstance(request["candidateMergeSha"], str)
@@ -92,7 +92,7 @@ def admit(event, env, branch, compare, prs, request, path, blob):
     return {"schemaVersion":1, "sourceKind":KIND, "requestId":rid, "repository":REPO,
             "originalRun":int(env["GITHUB_RUN_ID"]), "attempt":1,
             "originalBefore":before, "originalAfter":after, "mergedPr":pr["number"],
-            "originalRequestBlob":blob, "candidatePr":request["candidatePr"],
+            "originalRequestBlob":blob, "intentMode":request["mode"], "candidatePr":request["candidatePr"],
             "candidateMergeSha":request["candidateMergeSha"],
             "protectedSourceVerified":True, "candidateVerified":False,
             "candidateWriterCalled":False, "signingPerformed":False,
