@@ -319,7 +319,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
-      group: r11-legacy-issue-reconcile-${{ github.repository }}
+      group: verified-auto-candidate-${{ github.repository }}
       cancel-in-progress: false
     permissions:
       contents: read
