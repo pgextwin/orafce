@@ -16,6 +16,9 @@ candidate = {
     "originalCandidatePr": 8,
     "originalCandidateMerge": "9f09147b86703efd09e1ae1d5b23bd6c92c6b9b2",
     "manifestBlob": "a"*40, "sourceHead": "b"*40,
+    "originalCandidateHead": "e"*40,
+    "originalNativeWindowsRun": 32,
+    "originalRequiredWindowsCheckRun": 55,
     "requestId": "r11-20261031-orafce03",
     "originalOperatorRun": 21,
     "candidateWriterCalled": False, "signingPerformed": False,
@@ -48,9 +51,29 @@ scan = {
     ] + [{"repository": g.REPO, "mainSha": "d"*40, "status": "up-to-date"}]
 }
 manifest = {"path": "config/extension.json", "type": "file", "sha": "a"*40}
-parts = [candidate, run, artifacts, scan, manifest]
+provenance = {
+    "schemaVersion": 1,
+    "sourceKind": "MERGED_BOT_PR_REQUALIFICATION_NONPUBLISHING",
+    "centralScheduleRun": g.RUN_ID, "centralScheduleSha": g.RUN_HEAD,
+    "status": "NONPUBLISHING_REQUALIFICATION_ONLY",
+    "signedArtifactsVerified": False, "publisherWriteAuthorized": False,
+    "publicationAuthorized": False,
+    "entries": [{
+        "repository": g.REPO, "status": "MERGED_BOT_PR_REQUALIFICATION_NONPUBLISHING",
+        "originalPr": 8, "originalHead": "e"*40,
+        "mergedAncestor": "9f09147b86703efd09e1ae1d5b23bd6c92c6b9b2",
+        "currentProtectedMain": "d"*40, "manifestBlob": "a"*40,
+        "originalNativeWindowsRun": 32, "requiredCheckRun": 55,
+        "verifiedOriginalNativeCi": True,
+        "originalNativeZipBytesRehashed": False,
+        "newOIDCSigningRun": None, "independentSigstoreAudits": 0,
+        "publicationAuthorized": False, "publisherSourceKindAuthorized": False
+    }] + [{"repository": f"pgextwin/other{i}"} for i in range(3)]
+}
+parts = [candidate, run, artifacts, scan, manifest, provenance]
 ok = g.validate(*parts)
 assert ok["historicalCentralOriginalJsonVerified"] is True
+assert ok["historicalCentralProvenanceJsonVerified"] is True
 assert ok["centralOuterZipBytesIndependentlyRehashedHere"] is False
 assert ok["originalCentralRun"] == g.RUN_ID
 for key in ("candidateWriterCalled", "signingPerformed", "appCasPerformed",
@@ -96,6 +119,21 @@ cases = [
     (3, ["extensions", 16, "mainSha"], "bad"),
     (4, ["sha"], "f"*40),
     (4, ["path"], "config/update-watch.json"),
+    (5, ["sourceKind"], "FAKE_SCHEDULE"),
+    (5, ["centralScheduleRun"], 2),
+    (5, ["centralScheduleSha"], "f"*40),
+    (5, ["publicationAuthorized"], True),
+    (5, ["signedArtifactsVerified"], True),
+    (5, ["entries", 0, "repository"], "pgextwin/hypopg"),
+    (5, ["entries", 0, "originalPr"], 9),
+    (5, ["entries", 0, "originalHead"], "f"*40),
+    (5, ["entries", 0, "mergedAncestor"], "f"*40),
+    (5, ["entries", 0, "currentProtectedMain"], "f"*40),
+    (5, ["entries", 0, "manifestBlob"], "f"*40),
+    (5, ["entries", 0, "originalNativeWindowsRun"], 33),
+    (5, ["entries", 0, "requiredCheckRun"], 56),
+    (5, ["entries", 0, "verifiedOriginalNativeCi"], False),
+    (5, ["entries", 0, "publisherSourceKindAuthorized"], True),
 ]
 for idx, path, wrong in cases:
     args = copy.deepcopy(parts)
