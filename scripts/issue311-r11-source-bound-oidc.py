@@ -218,6 +218,39 @@ def signed_file_names(version_ref):
             for n in range(14,19)
             for extension in ("zip", "spdx.json", "vulnerabilities.json")}
 
+def audit_signed_main_lineage(orig, branch, head, run_id, compare=None):
+    """Keep the original signer SHA immutable while allowing protected main to advance.
+
+    The original source gate already authenticated this exact push when main
+    equaled head. An independent auditor may finish after another protected
+    merge; only a GET-proven fast-forward from signed head is acceptable.
+    """
+    need(orig.get("id") == run_id and orig.get("run_attempt") == 1
+         and orig.get("head_sha") == head and orig.get("path") == CALLER
+         and orig.get("event") == "push" and orig.get("status") == "in_progress"
+         and orig.get("conclusion") is None, "signed root Run changed")
+    current = (branch.get("commit") or {}).get("sha")
+    checks = (((branch.get("protection") or {}).get("required_status_checks") or {}).get("checks") or [])
+    need(branch.get("name") == "main" and branch.get("protected") is True
+         and type(current) is str and SHA.fullmatch(current)
+         and any(c.get("context") == "Windows required summary"
+                 and c.get("app_id") == 15368 for c in checks),
+         "current main is not protected by required App CI")
+    if current == head:
+        return "SIGNED_HEAD_CURRENT"
+    need(type(compare) is dict and compare.get("status") == "ahead"
+         and type(compare.get("ahead_by")) is int
+         and 1 <= compare["ahead_by"] <= 20
+         and compare.get("behind_by") == 0
+         and (compare.get("base_commit") or {}).get("sha") == head
+         and (compare.get("merge_base_commit") or {}).get("sha") == head
+         and type(compare.get("commits")) is list
+         and len(compare["commits"]) == compare["ahead_by"]
+         and compare["commits"][-1].get("sha") == current,
+         "signed HEAD is not an ancestor of protected current main")
+    return "SIGNED_HEAD_PROTECTED_ANCESTOR"
+
+
 def audit_main(folder, intent_path):
     env = os.environ
     need(env.get("GITHUB_REPOSITORY") == REPO
@@ -231,12 +264,11 @@ def audit_main(folder, intent_path):
     head, run_id = env["GITHUB_SHA"], int(env["GITHUB_RUN_ID"])
     orig = gh_get(f"repos/{REPO}/actions/runs/{run_id}")
     branch = gh_get(f"repos/{REPO}/branches/main")
-    need(orig.get("id") == run_id and orig.get("run_attempt") == 1
-         and orig.get("head_sha") == head and orig.get("path") == CALLER
-         and orig.get("event") == "push" and orig.get("status") == "in_progress"
-         and orig.get("conclusion") is None
-         and branch.get("protected") is True
-         and branch.get("commit", {}).get("sha") == head, "signed main/Run changed")
+    current_main = (branch.get("commit") or {}).get("sha")
+    comparison = (gh_get(f"repos/{REPO}/compare/{head}...{current_main}")
+                  if type(current_main) is str and SHA.fullmatch(current_main)
+                  and current_main != head else None)
+    audit_signed_main_lineage(orig, branch, head, run_id, comparison)
     # actions/download-artifact merge-multiple extracts the *inner* file names,
     # not the outer Actions artifact names. The immutable signer uses the
     # versioned name: orafce-VERSION_4_17_1-pg17-windows-x64.zip.
