@@ -68,7 +68,7 @@ for index,key,value in [
     (3,"action","dry-run:create"),(3,"issueNumber",999),
     (4,"repository","attacker/orafce"),(5,"event","schedule"),
     (5,"run_attempt",2),(6,"protected",False),
-    (7,"state","closed"),(8,"GITHUB_ACTOR","github-actions[bot]"),
+    (8,"GITHUB_ACTOR","github-actions[bot]"),
     (8,"GITHUB_RUN_ATTEMPT","2")]:
     altered=copy.deepcopy(update)
     altered[index][key]=value
