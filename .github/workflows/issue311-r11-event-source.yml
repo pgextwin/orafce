@@ -10,6 +10,7 @@ on:
       - "tests/test-issue311-r11-candidate-adapter.py"
       - "scripts/issue311-r11-central-source.py"
       - "tests/test-issue311-r11-central-source.py"
+      - "tests/test-issue311-r11-nonpublishing-functions.py"
   push:
     branches: [main]
     paths:
@@ -34,6 +35,7 @@ jobs:
           python tests/test-issue311-r11-event-source.py
           python tests/test-issue311-r11-candidate-adapter.py
           python tests/test-issue311-r11-central-source.py
+          python tests/test-issue311-r11-nonpublishing-functions.py
 
   source_observation:
     name: Authenticate protected operator push and historic candidate (NO SIGNING)
@@ -78,3 +80,35 @@ jobs:
             issue311-r11-central-original.json
           if-no-files-found: error
           retention-days: 30
+
+  # Functional replacement pilot: existing detector/reconciler and candidate
+  # planner run only after an original protected operator source admission.
+  # Pinned reusable workflows, READ-ONLY credentials, no cron, no writes.
+  operator_issue_reconcile_dry_run:
+    name: Original operator-bound candidate detection and Issue dry-run (NO WRITES)
+    needs: source_observation
+    if: ${{ needs.source_observation.result == 'success' }}
+    permissions:
+      contents: read
+      actions: read
+      issues: read
+    uses: pgextwin/build/.github/workflows/check-extension-updates.yml@19477b9440ce809fbadbd4fc0c7fadfd40a4a78f
+    with:
+      extension_config_path: config/extension.json
+      update_watch_path: config/update-watch.json
+      dry_run: true
+
+  operator_candidate_plan_dry_run:
+    name: Original operator-bound stable candidate plan (NO PR WRITER)
+    needs: source_observation
+    if: ${{ needs.source_observation.result == 'success' }}
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    uses: pgextwin/build/.github/workflows/candidate-update.yml@19477b9440ce809fbadbd4fc0c7fadfd40a4a78f
+    with:
+      extension_config_path: config/extension.json
+      update_watch_path: config/update-watch.json
+      candidate_policy_path: config/candidate-build.json
+      dry_run: true
