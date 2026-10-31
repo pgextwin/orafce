@@ -20,8 +20,8 @@ TAG = "VERSION_4_17_1"
 TAG_SHA = "4003faf7b57d2a97d56051e06f9af677a6c42405"
 COMMIT = "542aed2e0297898cc9844fede3c4452f894b37ed"
 PREFIX = ".github/r11-controlled-intents/"
-RID = re.compile(r"r11c-[0-9]{8}-[a-z0-9]{8,24}\\Z")
-SHA = re.compile(r"[0-9a-f]{40}\\Z")
+RID = re.compile(r"r11c-[0-9]{8}-[a-z0-9]{8,24}\Z")
+SHA = re.compile(r"[0-9a-f]{40}\Z")
 OUT = Path("r11-controlled-issue-writer-original.json")
 MARKER = "<!-- pgextwin-r11-controlled-issue:"
 
@@ -46,11 +46,11 @@ def api(repo, path, method="GET", fields=None):
     allowed = (repo == UPSTREAM and path in
                {"releases/tags/" + TAG, "git/ref/tags/" + TAG, "git/tags/" + TAG_SHA}) or (
                repo == REPO and (path in {"branches/main", "issues?state=all&per_page=100"}
-               or re.fullmatch(r"compare/[0-9a-f]{40}\\.\\.\\.[0-9a-f]{40}", path)
-               or re.fullmatch(r"commits/[0-9a-f]{40}/pulls\\?per_page=100", path)
+               or re.fullmatch(r"compare/[0-9a-f]{40}\.\.\.[0-9a-f]{40}", path)
+               or re.fullmatch(r"commits/[0-9a-f]{40}/pulls\?per_page=100", path)
                or re.fullmatch(r"pulls/[1-9][0-9]*", path)
                or re.fullmatch(r"issues/[1-9][0-9]*", path)
-               or re.fullmatch(r"contents/\\.github/r11-controlled-intents/r11c-[0-9]{8}-[a-z0-9]{8,24}\\.json\\?ref=[0-9a-f]{40}", path)
+               or re.fullmatch(r"contents/\.github/r11-controlled-intents/r11c-[0-9]{8}-[a-z0-9]{8,24}\.json\?ref=[0-9a-f]{40}", path)
                or path == "issues"))
     need(allowed and (method == "GET" or (method == "POST" and repo == REPO
          and path == "issues" and set(fields or {}) == {"title","body"})),
@@ -112,7 +112,7 @@ def validate_intent(request, event, env, branch, compare, associated, pr, item):
          and item.get("encoding") == "base64", "blob not from original commit")
     raw = base64.b64decode(item["content"],validate=True)
     need(0 < len(raw) < 8192 and parse(raw.decode("utf-8")) == request
-         and hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\\0"+raw).hexdigest() == item["sha"],
+         and hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest() == item["sha"],
          "intent blob mismatch")
     need(type(associated) is list and len(associated) == 1
          and associated[0].get("number") == pr.get("number")
@@ -155,7 +155,7 @@ def main():
         files=compare.get("files") or []
         need(len(files)==1, "expected one added intent")
         path=files[0]["filename"]
-        need(re.fullmatch(r"\\.github/r11-controlled-intents/r11c-[0-9]{8}-[a-z0-9]{8,24}\\.json",path),
+        need(re.fullmatch(r"\.github/r11-controlled-intents/r11c-[0-9]{8}-[a-z0-9]{8,24}\.json",path),
              "outside controlled intent namespace")
         item=api(REPO,"contents/"+path+"?ref="+after)
         raw=base64.b64decode(item["content"],validate=True)
@@ -182,14 +182,14 @@ def main():
         need(api(REPO,"branches/main")["commit"]["sha"]==after, "main moved")
         ensure_absent()
         title="R11 CONTROLLED integration: existing orafce 4.17.1 (NOT an update)"
-        body="\\n".join([marker,"## Isolated nonpublishing Writer proof",
+        body="\n".join([marker,"## Isolated nonpublishing Writer proof",
             "Existing genuine upstream Release: https://github.com/orafce/orafce/releases/tag/"+TAG,
             "Original protected request: `"+rid+"`",
             "Original Run: "+env["GITHUB_RUN_ID"]+"; head: `"+after+"`",
             "Pinned upstream commit: `"+COMMIT+"`",
             "**This is NOT a newly available stable, update notice, candidate or permission to publish.**"])
         receipt.update(action="QUARANTINED_ACK_UNKNOWN",writeOutcome="UNKNOWN",writeAttempts=1)
-        OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\\n")
+        OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n")
         created=api(REPO,"issues","POST",{"title":title,"body":body})
         number=created.get("number")
         need(type(number) is int and number>0
@@ -204,12 +204,12 @@ def main():
         receipt.update(action="CONTROLLED_ISSUE_CREATE_READBACK",
                        writeOutcome="CONFIRMED",issueNumber=number,
                        issueUrl=independent["html_url"])
-        OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\\n")
+        OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n")
         print("R11_CONTROLLED_PROVIDER_ISSUE_WRITE_READBACK_PASS_NOT_PUBLIC_E2E")
         return 0
     except (Denied,ValueError,KeyError,TypeError,OSError,UnicodeError,subprocess.TimeoutExpired) as exc:
         receipt["errorType"]=type(exc).__name__
-        OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\\n")
+        OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n")
         print("R11_CONTROLLED_FAIL_CLOSED: "+type(exc).__name__,file=sys.stderr)
         return 2
 
