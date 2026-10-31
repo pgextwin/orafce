@@ -90,5 +90,55 @@ assert g.only_own_run({"head_sha":h,"head_branch":name,
           "actor":{"login":"github-actions[bot]"}},source,writer)
 assert "schedule:" not in Path(".github/workflows/issue311-r11-event-source.yml").read_text()
 assert "candidate_native_ci:" in Path(".github/workflows/issue311-r11-event-source.yml").read_text()
+# Finite no-retry recovery and same-head original collision regression.
+# Fixtures are NOT GitHub provider evidence and never create a candidate.
+own={"id":456,"head_sha":h,"head_branch":name,"event":"workflow_dispatch",
+     "path":".github/workflows/windows.yml","run_attempt":1,
+     "repository":{"full_name":g.REPO},
+     "actor":{"login":"github-actions[bot]"}}
+foreign=dict(own,actor={"login":"ShutenOishi"})
+g.pre_dispatch_empty({"workflow_runs":[]},h)
+for hostile in ({"workflow_runs":[own]}, {"workflow_runs":[foreign]},
+                {"workflow_runs":[own,own]}, {"workflow_runs":None}):
+    try:g.pre_dispatch_empty(hostile,h)
+    except (g.Denied,TypeError,ValueError):count+=1
+    else:raise AssertionError("immediate same-head dispatch collision allowed")
+assert g.original_matches({"workflow_runs":[own]},source,writer)==[own]
+for hostile in ({"workflow_runs":[foreign]},{"workflow_runs":[own,own]},
+                {"workflow_runs":None}):
+    try:g.original_matches(hostile,source,writer)
+    except (g.Denied,TypeError,ValueError):count+=1
+    else:raise AssertionError("ambiguous native original accepted")
+reads=[]; sleeps=[]
+def recovered(method,path):
+    assert method=="GET" and path==g.dispatch_listing_path(name)
+    reads.append(path)
+    return {"workflow_runs":[own]} if len(reads)==3 else {"workflow_runs":[]}
+observed=g.finite_readonly_recovery(source,writer,get=recovered,
+                                  pause=lambda delay:sleeps.append(delay),attempts=3)
+assert observed=={"status":"ONE_ORIGINAL_OBSERVED_READONLY",
+                  "runId":456,"observations":3,"publicationAuthorized":False}
+assert len(reads)==3 and sleeps==[5,5]
+reads.clear()
+miss=g.finite_readonly_recovery(source,writer,
+    get=lambda method,path:reads.append((method,path)) or {"workflow_runs":[]},
+    pause=lambda delay:None,attempts=3)
+assert miss["status"]=="NOT_OBSERVED_FINITE_QUARANTINED" and len(reads)==3
+reads.clear()
+unknown=g.finite_readonly_recovery(source,writer,
+    get=lambda method,path:(_ for _ in ()).throw(OSError("ACK unknown")),
+    pause=lambda delay:None,attempts=3)
+assert unknown["status"]=="INDETERMINATE_QUARANTINED" and unknown["observations"]==1
+ambiguous=g.finite_readonly_recovery(source,writer,
+    get=lambda method,path:{"workflow_runs":[own,foreign]},
+    pause=lambda delay:None,attempts=3)
+assert ambiguous["status"]=="INDETERMINATE_QUARANTINED"
+for attempts in (0,4):
+    try:g.finite_readonly_recovery(source,writer,attempts=attempts)
+    except g.Denied:count+=1
+    else:raise AssertionError("unbounded or invalid recovery accepted")
+assert g.dispatch_listing_path(name).endswith("&event=workflow_dispatch&per_page=100")
+count+=4
+
 print("R11_NATIVE_CANDIDATE_CI_HOSTILE_PASS",count,
       "ONE_SHOT_NO_RELEASE_NO_FAKE_UPDATE")

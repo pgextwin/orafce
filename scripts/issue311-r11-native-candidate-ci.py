@@ -180,6 +180,50 @@ def only_own_run(r,source,writer):
         and (r.get("repository") or {}).get("full_name")==REPO
         and (r.get("actor") or {}).get("login")=="github-actions[bot]")
 
+def dispatch_listing_path(branch):
+    need(type(branch) is str and BRANCH.fullmatch(branch), "invalid recovery branch")
+    return ("actions/workflows/windows.yml/runs?branch="
+            +urllib.parse.quote(branch,safe="")
+            +"&event=workflow_dispatch&per_page=100")
+
+def original_matches(listed, source, writer):
+    need(type(listed) is dict and type(listed.get("workflow_runs")) is list
+         and len(listed["workflow_runs"]) < 100,
+         "truncated or invalid native CI original listing")
+    head=writer["candidateHead"]
+    matches=[r for r in listed["workflow_runs"] if r.get("head_sha")==head]
+    # Never ignore a foreign or rerun attempt on the same candidate HEAD.
+    need(len(matches) <= 1 and all(only_own_run(r,source,writer) for r in matches),
+         "ambiguous/foreign candidate native CI original")
+    return matches
+
+def pre_dispatch_empty(listed, head):
+    need(type(listed) is dict and type(listed.get("workflow_runs")) is list
+         and len(listed["workflow_runs"]) < 100,
+         "truncated or invalid immediate dispatch preflight")
+    need(not any(r.get("head_sha")==head for r in listed["workflow_runs"]),
+         "same-head original appeared before dispatch")
+
+def finite_readonly_recovery(source, writer, get=api, pause=time.sleep, attempts=3):
+    """Bounded observation only after a possibly delivered POST. Never dispatch/retry."""
+    need(type(attempts) is int and 1 <= attempts <= 3, "unbounded recovery")
+    path=dispatch_listing_path(writer["candidateBranch"])
+    for attempt in range(attempts):
+        try:
+            matches=original_matches(get("GET",path),source,writer)
+            if matches:
+                return {"status":"ONE_ORIGINAL_OBSERVED_READONLY",
+                        "runId":matches[0]["id"],"observations":attempt+1,
+                        "publicationAuthorized":False}
+        except (Denied,KeyError,TypeError,ValueError,OSError,
+                urllib.error.URLError,subprocess.TimeoutExpired):
+            return {"status":"INDETERMINATE_QUARANTINED","observations":attempt+1,
+                    "publicationAuthorized":False}
+        if attempt+1 < attempts:
+            pause(5)
+    return {"status":"NOT_OBSERVED_FINITE_QUARANTINED",
+            "observations":attempts,"publicationAuthorized":False}
+
 def main():
     receipt={"schemaVersion":1,"repository":REPO,"action":"DENIED",
              "writeOutcomeUnknown":False,"publicationAuthorized":False,
@@ -205,7 +249,7 @@ def main():
             head=writer.get("candidateHead")
             need(type(name) is str and BRANCH.fullmatch(name)
                  and type(head) is str and SHA.fullmatch(head),"untrusted branch/head")
-            listing="actions/workflows/windows.yml/runs?branch="+urllib.parse.quote(name,safe="")+"&event=workflow_dispatch&per_page=100"
+            listing=dispatch_listing_path(name)
             branch=api("GET","branches/main")
             pr=api("GET","pulls/"+str(writer["candidatePr"]))
             ref=api("GET","git/ref/heads/"+name)
@@ -218,6 +262,9 @@ def main():
             need(api("GET","branches/main")["commit"]["sha"]==source["originalAfter"]
                  and api("GET","git/ref/heads/"+name)["object"]["sha"]==head,
                  "head moved immediately before CI")
+            # Recheck dispatch identity after the other GETs, immediately
+            # before the only allowed POST; a duplicate means stop.
+            pre_dispatch_empty(api("GET",listing),head)
             receipt.update(action="QUARANTINED_DISPATCH_UNKNOWN",
                            candidatePr=writer["candidatePr"],
                            candidateBranch=name,candidateHead=head,
@@ -228,9 +275,7 @@ def main():
             # One dispatch, then bounded read-only polling. No retry of POST.
             run_id=None
             for _ in range(80):
-                listed=api("GET",listing)["workflow_runs"]
-                matches=[r for r in listed if only_own_run(r,source,writer)]
-                need(len(matches)<=1,"multiple same-head native CI originals")
+                matches=original_matches(api("GET",listing),source,writer)
                 if matches:
                     run_id=matches[0]["id"]
                     receipt["candidateCiRun"]=run_id
@@ -258,6 +303,9 @@ def main():
     except (Denied,KeyError,ValueError,TypeError,OSError,
             urllib.error.URLError,subprocess.TimeoutExpired) as exc:
         receipt["errorType"]=type(exc).__name__
+        if receipt.get("writeOutcomeUnknown") is True and receipt.get("candidateHead"):
+            # Fixed maximum three read-only GETs; quarantine remains mandatory.
+            receipt["finiteRecovery"]=finite_readonly_recovery(source,writer)
         OUT.write_text(json.dumps(receipt,sort_keys=True)+"\n",encoding="utf-8")
         print("R11_CANDIDATE_NATIVE_CI_FAIL_CLOSED "+type(exc).__name__,file=sys.stderr)
         return 2
