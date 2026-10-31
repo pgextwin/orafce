@@ -144,5 +144,19 @@ assert "contents: write" not in wf and "pull-requests: write" not in wf
 assert "issues: write" not in wf and "actions: write" not in wf
 assert "signed_windows:" in wf and "independent_audit:" in wf and "join:" in wf
 assert g.SIGNER_SHA in wf and g.SOURCE_RUN == 41163177685
+
+# The authentic Actions outer artifact is named orafce-pg17-windows-x64,
+# but download-artifact extracts VERSION-prefixed inner files.
+expected_files=g.signed_file_names("VERSION_4_17_1")
+assert len(expected_files)==15
+assert "orafce-VERSION_4_17_1-pg17-windows-x64.zip" in expected_files
+assert "orafce-VERSION_4_17_1-pg17-windows-x64.spdx.json" in expected_files
+assert "orafce-VERSION_4_17_1-pg17-windows-x64.vulnerabilities.json" in expected_files
+assert "orafce-pg17-windows-x64.zip" not in expected_files
+for wrong in ("../VERSION_4_17_1","VERSION_4_17_1/../bad","v4.17.1","VERSION_4_17_1.zip",42):
+    try: g.signed_file_names(wrong)
+    except (g.Denied, TypeError, ValueError): continue
+    raise AssertionError("unsafe signed file prefix accepted")
+
 print("R11_SOURCE_BOUND_HOSTILE_PASS",len(cases)+8+6,
       "synthetic_only_NO_SCHEDULE_NO_APP_CAS_NO_PUBLISH")

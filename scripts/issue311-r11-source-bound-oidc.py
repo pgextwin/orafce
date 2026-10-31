@@ -210,6 +210,14 @@ def safe_signed_receipt(item, env):
          "auditor intent not bound to true source")
     return True
 
+def signed_file_names(version_ref):
+    need(type(version_ref) is str
+         and bool(re.fullmatch(r"VERSION_[0-9]+_[0-9]+_[0-9]+", version_ref)),
+         "malformed signed upstream version")
+    return {f"orafce-{version_ref}-pg{n}-windows-x64.{extension}"
+            for n in range(14,19)
+            for extension in ("zip", "spdx.json", "vulnerabilities.json")}
+
 def audit_main(folder, intent_path):
     env = os.environ
     need(env.get("GITHUB_REPOSITORY") == REPO
@@ -229,13 +237,21 @@ def audit_main(folder, intent_path):
          and orig.get("conclusion") is None
          and branch.get("protected") is True
          and branch.get("commit", {}).get("sha") == head, "signed main/Run changed")
+    # actions/download-artifact merge-multiple extracts the *inner* file names,
+    # not the outer Actions artifact names. The immutable signer uses the
+    # versioned name: orafce-VERSION_4_17_1-pg17-windows-x64.zip.
+    config = decode(Path("config/extension.json").read_text("utf-8"))
+    version_ref = (config.get("upstream") or {}).get("ref")
+    need(version_ref == "VERSION_4_17_1" and
+         (config.get("upstream") or {}).get("commit") ==
+             "542aed2e0297898cc9844fede3c4452f894b37ed",
+         "source-bound upstream version/ref changed")
     names = {p.name for p in folder.iterdir() if p.is_file()}
-    expected = {f"orafce-pg{n}-windows-x64.{extension}" for n in range(14,19)
-                for extension in ("zip","spdx.json","vulnerabilities.json")}
+    expected = signed_file_names(version_ref)
     need(names == expected, "signed ZIP/SPDX/Grype PG14-18 missing or added")
     results = {}
     for n in range(14,19):
-        base = f"orafce-pg{n}-windows-x64"
+        base = f"orafce-{version_ref}-pg{n}-windows-x64"
         z, s, g = (folder / (base+ext) for ext in
                    (".zip", ".spdx.json", ".vulnerabilities.json"))
         need(all(0 < p.stat().st_size < 1_000_000_000 for p in (z,s,g)),
@@ -295,7 +311,7 @@ def audit_main(folder, intent_path):
             "zipSha256": digest,
             "spdxSha256": hashlib.sha256(s.read_bytes()).hexdigest(),
             "grypeSha256": hashlib.sha256(g.read_bytes()).hexdigest()}
-    need(all(hashlib.sha256((folder/(f"orafce-pg{n}-windows-x64.zip")).read_bytes()).hexdigest()
+    need(all(hashlib.sha256((folder/(f"orafce-{version_ref}-pg{n}-windows-x64.zip")).read_bytes()).hexdigest()
              == results[str(n)]["zipSha256"] for n in range(14,19)),
          "signed bytes changed after verification")
     receipt = {"schemaVersion":1,"result":"TWO_REQUIRED_REAL_AUDIT_JOBS_NONPUBLISHING",
