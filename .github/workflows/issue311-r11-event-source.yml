@@ -13,6 +13,8 @@ on:
       - "tests/test-issue311-r11-nonpublishing-functions.py"
       - "scripts/issue311-r11-issue-notice-writer.py"
       - "tests/test-issue311-r11-issue-notice-writer.py"
+      - "scripts/issue311-r11-candidate-pr-writer.py"
+      - "tests/test-issue311-r11-candidate-pr-writer.py"
   push:
     branches: [main]
     paths:
@@ -39,6 +41,7 @@ jobs:
           python tests/test-issue311-r11-central-source.py
           python tests/test-issue311-r11-nonpublishing-functions.py
           python tests/test-issue311-r11-issue-notice-writer.py
+          python tests/test-issue311-r11-candidate-pr-writer.py
 
   source_observation:
     name: Authenticate protected operator push and historic candidate (NO SIGNING)
@@ -69,7 +72,8 @@ jobs:
           mode=record.get("intentMode")
           assert record["protectedSourceVerified"] is True
           assert mode in ("REQUALIFY_EXISTING_CANDIDATE_NONPUBLISHING",
-                          "ISSUE_NOTICE_NONPUBLISHING")
+                          "ISSUE_NOTICE_NONPUBLISHING",
+                          "CANDIDATE_PR_NONPUBLISHING")
           with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
               out.write("intent_mode="+mode+"\n")
           PY
@@ -245,5 +249,57 @@ jobs:
         with:
           name: r11-s6-issue-writer-receipt
           path: r11-s6-issue-writer-receipt.json
+          if-no-files-found: warn
+          retention-days: 30
+
+
+  candidate_pr_writer:
+    name: Source-bound create-only draft candidate PR (NO DISPATCH OR RELEASE)
+    needs: [source_observation, operator_readonly_functions]
+    if: ${{ needs.source_observation.result == 'success' && needs.operator_readonly_functions.result == 'success' && needs.source_observation.outputs.intent_mode == 'CANDIDATE_PR_NONPUBLISHING' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      # Same group as the OLD pinned reusable candidate proposer. This guards
+      # cooperating jobs only; it is not evidence of a real HTTP409 collision.
+      group: candidate-proposer-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: pgextwin/build
+          ref: 19477b9440ce809fbadbd4fc0c7fadfd40a4a78f
+          path: .pgextwin-build
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: issue311-r11-operator-candidate-original
+          path: r11-source
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: r11-operator-functions-readonly-original
+          path: r11-functions
+      - name: Candidate Writer hostile regression
+        run: python tests/test-issue311-r11-candidate-pr-writer.py
+      - name: Reauthenticate human intent and independently recompute live policy/plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/issue311-r11-candidate-pr-writer.py
+      - name: Preserve original create-only candidate Writer boundary receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: r11-s6-candidate-pr-writer-receipt
+          path: r11-s6-candidate-pr-writer-receipt.json
           if-no-files-found: warn
           retention-days: 30
