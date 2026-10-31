@@ -66,3 +66,18 @@ The user-visible publication state remains `PUBLISH_DENY`,
 `runtimeEnabled=false`. Do not delete schedule, create Release/Tag, or edit
 Catalog or Website during this pilot. The previous PR#73/74 and original ZIP
 proof are historical independent evidence, not tests to repeat.
+
+
+## 単一要求のscope連結 v2.3
+
+schemaVersion=2 / mode=PREPARE_SCOPED_NONPUBLISHING の一つの追加ファイルで、
+Issue調停・Draft作成・native CIの3工程を同じrequestId/PR/source Runへ結合できる。
+scopeは ISSUE_RECONCILE_NONPUBLISHING / CANDIDATE_PR_NONPUBLISHING /
+NATIVE_CI_NONPUBLISHING の3件、replayKey=requestId、expiresAtはUTCの有限期限。
+expectedPriorMainShaと既存candidatePr/candidateMergeShaも必須。source SHA/actor/PRを
+従来どおり独立GETし、各Writerが同じ原本を再生成しscope/期限を照合する。
+追加human intentを要求しない。旧schemaVersion=1は履歴互換として保持する。
+
+これは実装経路であり、非空Writer実統合成功やR11受入を意味しない。
+真正新stableがない場合はNO_CHANGEのまま。既存真正tagを使った隔離統合adapterは
+未実装で、将来の公開E2Eと区別する。Release/Tag/公開認可/保護設定は変更しない。

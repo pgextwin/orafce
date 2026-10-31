@@ -91,7 +91,7 @@ def api(method,path,body=None):
 
 def evaluate(source,mode,writer,plan,branch,pr,ref,diff,manifest,runs,env):
     need(source.get("protectedSourceVerified") is True
-         and source.get("intentMode")=="CANDIDATE_PR_NONPUBLISHING"
+         and load("issue311-r11-event-source.py").scope_allows(source, "NATIVE_CI_NONPUBLISHING")
          and source.get("repository")==REPO
          and type(source.get("originalRun")) is int
          and source.get("attempt")==1

@@ -216,3 +216,17 @@ assert "      contents: write" in job and "      pull-requests: write" in job an
 assert not re.search(r"^\s+(issues|actions|id-token|attestations): write$", job, re.M)
 assert "  schedule:" not in workflow and "workflow_dispatch:" not in workflow
 print("R11_CANDIDATE_PR_WRITER_OFFLINE_PASS", count, "negative/fault boundaries; no live POST/CAS/409 evidence")
+
+# Same immutable authenticated source admits each scoped stage; expired source denies.
+from datetime import datetime, timezone, timedelta
+sc=copy.deepcopy(source)
+
+sc.update(intentMode="PREPARE_SCOPED_NONPUBLISHING",requestId="r11-20261031-scoped01",
+          requestedScopes=["ISSUE_RECONCILE_NONPUBLISHING","CANDIDATE_PR_NONPUBLISHING","NATIVE_CI_NONPUBLISHING"],
+          replayKey="r11-20261031-scoped01",
+          expiresAt=(datetime.now(timezone.utc)+timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+g.bind(sc, copy.deepcopy(sc), mode, env)
+sc["expiresAt"]="2020-01-01T00:00:00Z"
+try: g.bind(sc, copy.deepcopy(sc), mode, env)
+except (g.Denied,ValueError): pass
+else: raise AssertionError("expired scoped stage passed")

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """R11: independent read-only operator intent source, never schedule/PUBLISH."""
 import base64
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -32,6 +33,26 @@ def decode(raw):
             result[key] = value
         return result
     return json.loads(raw, object_pairs_hook=unique)
+
+SCOPED_MODE = "PREPARE_SCOPED_NONPUBLISHING"
+STAGE_SCOPES = frozenset({"ISSUE_RECONCILE_NONPUBLISHING",
+                         "CANDIDATE_PR_NONPUBLISHING", "NATIVE_CI_NONPUBLISHING"})
+
+def scope_allows(source, stage, now=None):
+    """Only consume a regenerated authenticated source; this is not authentication."""
+    if source.get("intentMode") != SCOPED_MODE:
+        # Historical candidate requests already include their native-CI continuation.
+        legacy = "CANDIDATE_PR_NONPUBLISHING" if stage == "NATIVE_CI_NONPUBLISHING" else stage
+        return source.get("intentMode") == legacy
+    try:
+        scopes = source["requestedScopes"]
+        expiry = datetime.strptime(source["expiresAt"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        return (type(scopes) is list and bool(scopes) and len(scopes) == len(set(scopes))
+                and set(scopes) <= STAGE_SCOPES and stage in scopes
+                and source.get("replayKey") == source.get("requestId")
+                and expiry > (now or datetime.now(timezone.utc)))
+    except (KeyError, TypeError, ValueError):
+        return False
 
 def admit(event, env, branch, compare, prs, request, path, blob):
     before, after = event.get("before"), event.get("after")
@@ -74,22 +95,30 @@ def admit(event, env, branch, compare, prs, request, path, blob):
          and (pr.get("user") or {}).get("id") == ACTOR_ID
          and (pr.get("merged_by") or {}).get("login") == ACTOR
          and (pr.get("merged_by") or {}).get("id") == ACTOR_ID, "untrusted PR provenance")
+    scoped = request.get("mode") == SCOPED_MODE
+    extra = {"scope", "expiresAt", "replayKey"} if scoped else set()
     need(set(request) == {"schemaVersion","requestId","repository","sourceKind",
           "mode","expectedPriorMainSha","candidatePr","candidateMergeSha",
-          "runtimeEnabled","publisherAuthorized"}, "unrecognized request fields")
+          "runtimeEnabled","publisherAuthorized"} | extra, "unrecognized request fields")
     rid = request["requestId"]
     need(isinstance(rid, str) and RID.fullmatch(rid)
          and path == PREFIX + rid + ".json"
-         and type(request["schemaVersion"]) is int and request["schemaVersion"] == 1
+         and type(request["schemaVersion"]) is int and request["schemaVersion"] == (2 if scoped else 1)
          and request["repository"] == REPO and request["sourceKind"] == KIND
-         and request["mode"] in ("REQUALIFY_EXISTING_CANDIDATE_NONPUBLISHING", "ISSUE_NOTICE_NONPUBLISHING", "CANDIDATE_PR_NONPUBLISHING", "ISSUE_RECONCILE_NONPUBLISHING")
+         and request["mode"] in ("REQUALIFY_EXISTING_CANDIDATE_NONPUBLISHING", "ISSUE_NOTICE_NONPUBLISHING", "CANDIDATE_PR_NONPUBLISHING", "ISSUE_RECONCILE_NONPUBLISHING", SCOPED_MODE)
          and request["expectedPriorMainSha"] == before
          and type(request["candidatePr"]) is int and request["candidatePr"] > 0
          and isinstance(request["candidateMergeSha"], str)
          and SHA.fullmatch(request["candidateMergeSha"])
          and request["runtimeEnabled"] is False
          and request["publisherAuthorized"] is False, "invalid nonpublishing source")
-    return {"schemaVersion":1, "sourceKind":KIND, "requestId":rid, "repository":REPO,
+    extension = {}
+    if scoped:
+        extension = {"requestedScopes": request["scope"], "expiresAt": request["expiresAt"],
+                     "replayKey": request["replayKey"], "requestId": rid, "intentMode": SCOPED_MODE}
+        need(scope_allows(extension, "CANDIDATE_PR_NONPUBLISHING")
+             and set(request["scope"]) == STAGE_SCOPES, "invalid scoped request, expiry or replay key")
+    return {**extension, "schemaVersion":1, "sourceKind":KIND, "requestId":rid, "repository":REPO,
             "originalRun":int(env["GITHUB_RUN_ID"]), "attempt":1,
             "originalBefore":before, "originalAfter":after, "mergedPr":pr["number"],
             "originalRequestBlob":blob, "intentMode":request["mode"], "candidatePr":request["candidatePr"],
