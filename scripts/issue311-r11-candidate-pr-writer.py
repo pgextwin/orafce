@@ -264,6 +264,15 @@ def execute(context, source, record, receipt, call=api, refresh=None):
     if refresh:
         need(proposal(record, refresh(), read("config/extension.json")) is not None,
              "candidate ceased to be eligible")
+    # Exact legacy/new shared mutable namespace: a previous GET is not a fence.
+    # A legacy candidate might have created this branch or PR while the tree
+    # and commit objects were being prepared. Ref creation stays create-only;
+    # never adopt, update or retry a legacy-owned candidate ref.
+    late_refs = request("GET", "git/matching-refs/heads/" + context["branch"])
+    late_prs = request("GET", "pulls?state=all&head=pgextwin:" + context["branch"] + "&per_page=100")
+    need(type(late_refs) is list and type(late_prs) is list and len(late_prs) < 100
+         and not late_refs and not late_prs,
+         "legacy/new candidate appeared before create-only ref; DENY")
     main_guard()
     created = request("POST", "git/refs", {"ref": "refs/heads/" + context["branch"], "sha": context["commit"]})
     need(created.get("ref") == "refs/heads/" + context["branch"]
@@ -271,6 +280,12 @@ def execute(context, source, record, receipt, call=api, refresh=None):
     refs = request("GET", "git/matching-refs/heads/" + context["branch"])
     need(type(refs) is list and len(refs) == 1 and refs[0].get("ref") == created["ref"]
          and refs[0].get("object", {}).get("sha") == context["commit"], "candidate ref readback mismatch")
+    # A second actor could create a PR against the just-created ref. Do not
+    # create a second PR even if the ref bytes remain unchanged. This is an
+    # advisory live GET; create-only ref and shared concurrency remain required.
+    late_prs = request("GET", "pulls?state=all&head=pgextwin:" + context["branch"] + "&per_page=100")
+    need(type(late_prs) is list and len(late_prs) < 100 and not late_prs,
+         "legacy/new candidate PR appeared after ref; DENY")
     main_guard()
     created = request("POST", "pulls", {"title": context["title"], "head": context["branch"],
                       "base": "main", "body": context["body"], "draft": True})
