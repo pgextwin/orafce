@@ -66,6 +66,14 @@ def api(repo, path, method="GET", fields=None):
          "provider denied or response ambiguous; never retry write")
     return parse(result.stdout)
 
+def decode_contents(item):
+    """GitHub Contents API Base64 has LF line wrapping; reject all other whitespace."""
+    need(type(item) is dict and item.get("encoding") == "base64"
+         and type(item.get("content")) is str and bool(item["content"])
+         and "\r" not in item["content"] and "\t" not in item["content"],
+         "malformed GitHub Contents encoding")
+    return base64.b64decode(item["content"].replace("\n", ""), validate=True)
+
 def validate_intent(request, event, env, branch, compare, associated, pr, item):
     before, after = event.get("before"),event.get("after")
     need(all(type(s) is str and SHA.fullmatch(s) for s in (before,after))
@@ -110,7 +118,7 @@ def validate_intent(request, event, env, branch, compare, associated, pr, item):
     need(datetime.now(timezone.utc) < expiry, "original intent expired")
     need(item.get("path") == path and item.get("type") == "file"
          and item.get("encoding") == "base64", "blob not from original commit")
-    raw = base64.b64decode(item["content"],validate=True)
+    raw = decode_contents(item)
     need(0 < len(raw) < 8192 and parse(raw.decode("utf-8")) == request
          and hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest() == item["sha"],
          "intent blob mismatch")
@@ -158,7 +166,7 @@ def main():
         need(re.fullmatch(r"\.github/r11-controlled-intents/r11c-[0-9]{8}-[a-z0-9]{8,24}\.json",path),
              "outside controlled intent namespace")
         item=api(REPO,"contents/"+path+"?ref="+after)
-        raw=base64.b64decode(item["content"],validate=True)
+        raw=decode_contents(item)
         request=parse(raw.decode("utf-8"))
         associated=api(REPO,"commits/"+after+"/pulls?per_page=100")
         need(type(associated) is list and len(associated)==1, "non-unique merged PR")
