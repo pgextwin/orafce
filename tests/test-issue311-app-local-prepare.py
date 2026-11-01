@@ -151,3 +151,33 @@ assert workflow.count("pattern: orafce-pg*-windows-x64") == 2
 for deny in ("release create", "gh release", "contents: write", "pull-requests: write"):
     assert deny not in workflow.lower(), f"R08 unauthorized publication path: {deny}"
 print("ISSUE311_R08_APP_OIDC_TWO_REAL_SIGSTORE_JOBS_POLICY_PASS; NO_LIVE_CREDIT")
+
+# Strict verified PREPARE routing, no unverified candidate or silent signing bypass.
+clean = {
+    "result": "NO_UPDATE",
+    "sourceKind": "APP_BOT_AUTHENTICATED_ORIGINAL_PREPARE_LOCAL_READONLY_V1",
+    "candidateAdmissionAuthorized": False, "publisherSourceKindAuthorized": False,
+    "publicationAuthorized": False, "publicReleaseAuthorized": False,
+    "runtimeEnabled": False, "candidateCreated": False,
+    "originalScanReexecuted": False,
+    "centralOriginalOuterZipSha256Verified": "a" * 64,
+}
+assert m.verified_source_route(clean) == "NO_UPDATE"
+assert m.verified_source_route(dict(clean, result="UPDATE_PRESENT_NOT_AUTHORIZED")) == "UPDATE_PRESENT_NOT_AUTHORIZED"
+for key, value in (("result", "FAILED"), ("result", "UPDATE"), ("sourceKind", "UNTRUSTED"),
+                   ("publisherSourceKindAuthorized", True), ("candidateCreated", True),
+                   ("centralOriginalOuterZipSha256Verified", "")):
+    bad = dict(clean, **{key: value})
+    try: m.verified_source_route(bad)
+    except m.Denied: pass
+    else: raise AssertionError("unsafe PREPARE route accepted: " + key)
+assert "source_route: ${{ steps.local_gate.outputs.source_route }}" in workflow
+assert "id: local_gate" in workflow
+for name in ("r08_app_signing_intent", "r07_windows"):
+    seg = workflow.split("\n  " + name + ":",1)[1].split("\n  ",1)[0]
+    assert "needs.app_local_prepare.outputs.source_route == 'UPDATE_PRESENT_NOT_AUTHORIZED'" in seg
+required = workflow.split("\n  r07_windows_required:",1)[1].split("\n  r08_signed_audit_first:",1)[0]
+assert "test \"$WINDOWS_MATRIX_RESULT\" = skipped || exit 1" in required
+assert "python3 scripts/required_windows_summary.py" in required
+assert '*) echo "Untrusted or absent source route"' in required
+print("ISSUE311_NO_UPDATE_CANDIDATE_ATTESTATION_SEPARATION_PASS")
