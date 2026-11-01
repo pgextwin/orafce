@@ -38,7 +38,7 @@ print("R11_CONTROLLED_DRAFT_HOSTILE_PASS_NO_PROVIDER_WRITE")
 # Recursive GET must bind the one nested proof blob, not a top-level docs directory.
 import hashlib
 proof=ctx["proof"].encode("utf-8")
-blobsha=hashlib.sha1(b"blob "+str(len(proof)).encode()+b"\\0"+proof).hexdigest()
+blobsha=hashlib.sha1(b"blob "+str(len(proof)).encode()+b"\0"+proof).hexdigest()
 response={"sha":ctx["tree"],"truncated":False,
           "tree":[{"path":ctx["proofPath"],"mode":"100644","type":"blob","sha":blobsha}]}
 m.validate_tree_readback(response,ctx)
