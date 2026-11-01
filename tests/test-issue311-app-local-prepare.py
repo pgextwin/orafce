@@ -173,8 +173,9 @@ for key, value in (("result", "FAILED"), ("result", "UPDATE"), ("sourceKind", "U
     else: raise AssertionError("unsafe PREPARE route accepted: " + key)
 assert "source_route: ${{ steps.local_gate.outputs.source_route }}" in workflow
 assert "id: local_gate" in workflow
-for name in ("r08_app_signing_intent", "r07_windows"):
-    seg = workflow.split("\n  " + name + ":",1)[1].split("\n  ",1)[0]
+for name, next_name in (("r08_app_signing_intent", "r07_windows"),
+                        ("r07_windows", "r07_windows_required")):
+    seg = workflow.split("\n  " + name + ":",1)[1].split("\n  " + next_name + ":",1)[0]
     assert "needs.app_local_prepare.outputs.source_route == 'UPDATE_PRESENT_NOT_AUTHORIZED'" in seg
 required = workflow.split("\n  r07_windows_required:",1)[1].split("\n  r08_signed_audit_first:",1)[0]
 assert "test \"$WINDOWS_MATRIX_RESULT\" = skipped || exit 1" in required
