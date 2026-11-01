@@ -1,0 +1,56 @@
+name: R11 isolated genuine historic upstream Issue Writer (NONPUBLISHING)
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue311-r11-controlled-writer.yml"
+      - "scripts/issue311-r11-controlled-issue-writer.py"
+      - "tests/test-issue311-r11-controlled-issue-writer.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/r11-controlled-intents/*.json"
+
+permissions:
+  contents: read
+
+jobs:
+  hostile:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python tests/test-issue311-r11-controlled-issue-writer.py
+
+  controlled_original:
+    if: github.repository == 'pgextwin/orafce' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor == 'ShutenOishi' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: r11-controlled-issue-writer-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Offline hostile cases before any issue write
+        run: python tests/test-issue311-r11-controlled-issue-writer.py
+      - name: Original protected user intent, real upstream 3 GETs, one isolated Issue POST and independent GET
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/issue311-r11-controlled-issue-writer.py
+      - name: Immutable bounded original receipt (not R11 formal acceptance)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: r11-controlled-real-issue-writer-original
+          path: r11-controlled-issue-writer-original.json
+          if-no-files-found: error
+          retention-days: 30
