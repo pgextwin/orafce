@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "requestId": "r11c-20261101-issueoriginal01",
+  "mode": "CONTROLLED_EXISTING_RELEASE_ISSUE_ONLY",
+  "repository": "pgextwin/orafce",
+  "expectedPriorMainSha": "eb22edb6d132307ed9ef83d59624717f06d72207",
+  "upstreamRepository": "orafce/orafce",
+  "tag": "VERSION_4_17_1",
+  "tagObjectSha": "4003faf7b57d2a97d56051e06f9af677a6c42405",
+  "commit": "542aed2e0297898cc9844fede3c4452f894b37ed",
+  "expiresAt": "2026-11-02T00:00:00Z",
+  "runtimeEnabled": false,
+  "publicationAuthorized": false
+}
