@@ -34,3 +34,20 @@ assert m.PREFIX==".github/r11-controlled-draft-intents/"
 assert m.MARKER.startswith("<!-- pgextwin-r11-controlled-draft:")
 assert not any("config/extension.json" in str(body) for _,body in cases)
 print("R11_CONTROLLED_DRAFT_HOSTILE_PASS_NO_PROVIDER_WRITE")
+
+# Recursive GET must bind the one nested proof blob, not a top-level docs directory.
+import hashlib
+proof=ctx["proof"].encode("utf-8")
+blobsha=hashlib.sha1(b"blob "+str(len(proof)).encode()+b"\\0"+proof).hexdigest()
+response={"sha":ctx["tree"],"truncated":False,
+          "tree":[{"path":ctx["proofPath"],"mode":"100644","type":"blob","sha":blobsha}]}
+m.validate_tree_readback(response,ctx)
+for bad in (
+    {**response,"truncated":True},
+    {**response,"tree":[{"path":"docs","mode":"040000","type":"tree","sha":blobsha}]},
+    {**response,"tree":[{"path":ctx["proofPath"],"mode":"100644","type":"blob","sha":"f"*40}]},
+):
+    try: m.validate_tree_readback(bad,ctx)
+    except m.Denied: pass
+    else: raise AssertionError("nonrecursive or substituted nested proof accepted")
+print("R11_RECURSIVE_PROOF_TREE_READBACK_HOSTILE_PASS")
