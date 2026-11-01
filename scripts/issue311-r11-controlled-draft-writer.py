@@ -48,13 +48,13 @@ def api(repo, path, method="GET", fields=None):
                or re.fullmatch(r"git/trees/[0-9a-f]{40}", path)
                or re.fullmatch(r"git/ref/heads/r11-controlled-draft/r11d-[0-9]{8}-[a-z0-9]{8,24}", path)
                or re.fullmatch(r"git/matching-refs/heads/r11-controlled-draft/r11d-[0-9]{8}-[a-z0-9]{8,24}", path)
-               or re.fullmatch(r"pulls/[1-9][0-9]*/files\\?per_page=100", path)
-               or re.fullmatch(r"pulls\\?state=all&head=pgextwin:r11-controlled-draft/r11d-[0-9]{8}-[a-z0-9]{8,24}&per_page=100", path))
+               or re.fullmatch(r"pulls/[1-9][0-9]*/files\?per_page=100", path)
+               or re.fullmatch(r"pulls\?state=all&head=pgextwin:r11-controlled-draft/r11d-[0-9]{8}-[a-z0-9]{8,24}&per_page=100", path))
     source_get = (path == "branches/main"
-                  or re.fullmatch(r"compare/[0-9a-f]{40}\\.\\.\\.[0-9a-f]{40}", path)
-                  or re.fullmatch(r"commits/[0-9a-f]{40}/pulls\\?per_page=100", path)
+                  or re.fullmatch(r"compare/[0-9a-f]{40}\.\.\.[0-9a-f]{40}", path)
+                  or re.fullmatch(r"commits/[0-9a-f]{40}/pulls\?per_page=100", path)
                   or re.fullmatch(r"pulls/[1-9][0-9]*", path)
-                  or re.fullmatch(r"contents/\\.github/r11-controlled-draft-intents/r11d-[0-9]{8}-[a-z0-9]{8,24}\\.json\\?ref=[0-9a-f]{40}", path))
+                  or re.fullmatch(r"contents/\.github/r11-controlled-draft-intents/r11d-[0-9]{8}-[a-z0-9]{8,24}\.json\?ref=[0-9a-f]{40}", path))
     upstream_get = path in {"releases/tags/" + TAG, "git/ref/tags/" + TAG,
                             "git/tags/" + TAG_SHA}
     allowed = ((method == "GET" and fields is None
@@ -185,7 +185,7 @@ def post_once(path, payload, ctx, receipt):
          "duplicate write endpoint")
     receipt["writes"].append({"path":path,"outcome":"UNKNOWN"})
     receipt["action"]="QUARANTINED_ACK_UNKNOWN"
-    OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\\n",encoding="utf-8")
+    OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n",encoding="utf-8")
     value=api(REPO,path,"POST",payload)
     receipt["writes"][-1]["outcome"]="RESPONSE_OBSERVED_NOT_YET_READBACK"
     return value
@@ -216,7 +216,7 @@ def main():
         files=compare.get("files") or []
         need(len(files)==1,"original intent is not one file")
         path=files[0]["filename"]
-        need(re.fullmatch(r"\\.github/r11-controlled-draft-intents/r11d-[0-9]{8}-[a-z0-9]{8,24}\\.json",path),
+        need(re.fullmatch(r"\.github/r11-controlled-draft-intents/r11d-[0-9]{8}-[a-z0-9]{8,24}\.json",path),
              "source intent not in isolated draft namespace")
         item=api(REPO,"contents/"+path+"?ref="+after)
         request=parse(decode_contents(item).decode("utf-8"))
@@ -235,13 +235,13 @@ def main():
              "proofPath":"docs/r11-controlled-draft-proof/"+rid+".md",
              "message":"test(r11): controlled historic-release isolated Draft only",
              "title":"R11 CONTROLLED DRAFT (historic orafce 4.17.1; NOT update)"}
-        ctx["proof"]="\\n".join([
+        ctx["proof"]="\n".join([
             "# R11 controlled Draft integration (never publish)",
             "Request: "+rid, "Original protected source: "+after,
             "Real existing upstream: "+UPSTREAM+" "+TAG+" "+COMMIT,
             "No new stable, no change to config/extension.json.",
             "No eligible candidate, no release/signature/attestation claim.",""])
-        ctx["body"]="\\n".join([
+        ctx["body"]="\n".join([
             "Controlled, isolated create-only provider PR test. Not a new upstream update.",
             "Exact genuine upstream: https://github.com/orafce/orafce/releases/tag/"+TAG,
             "Source user intent: "+rid+" / main "+after,
@@ -319,12 +319,12 @@ def main():
             writeOutcome="CONFIRMED",draftNumber=number,
             draftUrl=readback.get("html_url"),branch=branch,
             draftHead=ctx["commit"],writeCount=len(receipt["writes"]))
-        OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\\n",encoding="utf-8")
+        OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n",encoding="utf-8")
         print("R11_CONTROLLED_DRAFT_PROVIDER_CREATE_READBACK_PASS_NOT_NEW_STABLE")
         return 0
     except (Denied,ValueError,KeyError,TypeError,OSError,UnicodeError,subprocess.TimeoutExpired) as exc:
         receipt["errorType"]=type(exc).__name__
-        OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\\n",encoding="utf-8")
+        OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n",encoding="utf-8")
         print("R11_CONTROLLED_DRAFT_DENY: "+type(exc).__name__,file=sys.stderr)
         return 2
 
