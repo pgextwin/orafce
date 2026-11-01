@@ -88,9 +88,11 @@ for method, path, data in (("PATCH", "git/refs/heads/main", {}), ("PUT", "conten
     denied(lambda: g.allow(method, path, data, context))
 
 class Provider:
-    def __init__(self, existing=False, fault=None, lose=None, moved=False):
+    def __init__(self, existing=False, fault=None, lose=None, moved=False, race=None):
         self.writes = []
         self.calls = []
+        self.ref_reads, self.pr_reads = 0, 0
+        self.race = race
         self.existing, self.fault, self.lose, self.moved = existing, fault, lose, moved
     def call(self, method, path, body, ctx, receipt):
         g.allow(method, path, body, ctx)
@@ -103,8 +105,15 @@ class Provider:
             return {"name": "main", "protected": True, "commit": {"sha": "c"*40 if self.moved else "a"*40},
                 "protection": {"required_status_checks": {"checks": [{"context": "Windows required summary", "app_id": 15368}]}}}
         if path.startswith("git/matching-refs/"):
-            return [{"ref": "refs/heads/"+ctx["branch"], "object": {"sha": "e"*40}}] if self.existing or "git/refs" in self.writes else []
+            self.ref_reads += 1
+            legacy_arrived = self.race == "legacy-ref" and self.ref_reads >= 2
+            return [{"ref": "refs/heads/"+ctx["branch"], "object": {"sha": "e"*40}}] if self.existing or legacy_arrived or "git/refs" in self.writes else []
         if path.startswith("pulls?"):
+            self.pr_reads += 1
+            if (self.race == "legacy-pr" and self.pr_reads >= 2 or
+                    self.race == "legacy-pr-after-ref" and self.pr_reads >= 3):
+                return [{"number": 998, "state": "open", "draft": True,
+                         "head": {"ref": ctx["branch"]}}]
             return []
         if path == "git/commits/"+"a"*40:
             return {"sha": "a"*40, "tree": {"sha": "c"*40}}
@@ -144,6 +153,18 @@ existing = Provider(existing=True)
 r = {"writes": []}
 g.execute(dict(context), source, record, r, call=existing.call)
 assert existing.writes == [] and r["action"] == "BLOCKED_EXISTING_CANDIDATE"
+# Old/new race: the legacy Writer starts after the first GET, while the
+# nonpublishing new Writer has created only immutable unreachable Git objects.
+# No second write to a mutable branch or an existing PR is permitted.
+for race, permissible in (("legacy-ref", ["git/trees", "git/commits"]),
+                         ("legacy-pr", ["git/trees", "git/commits"]),
+                         ("legacy-pr-after-ref", ["git/trees", "git/commits", "git/refs"])):
+    provider = Provider(race=race)
+    denied(lambda provider=provider: g.execute(dict(context), source, record,
+                                                {"writes": []}, call=provider.call))
+    assert provider.writes == permissible, (race, provider.writes)
+    assert "pulls" not in provider.writes, race
+
 for fault in ("diff", "bytes", "draft"):
     provider = Provider(fault=fault)
     denied(lambda: g.execute(dict(context), source, record, {"writes": []}, call=provider.call))
