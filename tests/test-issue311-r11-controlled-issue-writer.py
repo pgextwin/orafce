@@ -28,4 +28,15 @@ reject(lambda:m.api(m.REPO,"releases",method="GET"))
 reject(lambda:m.api(m.REPO,"issues/1",method="PATCH",fields={"state":"closed"}))
 reject(lambda:m.api(m.REPO,"git/refs",method="POST",fields={"ref":"abc"}))
 assert m.MARKER not in "<!-- pgextwin-update-watch:v1:upstream:orafce -->"
+
+# GitHub Contents API standard LF-wrapped base64 is genuine and must decode.
+import base64
+payload=b'{"source":"original"}'
+encoded=base64.b64encode(payload).decode("ascii")
+assert m.decode_contents({"encoding":"base64",
+    "content":encoded[:6]+"\n"+encoded[6:]+"\n"}) == payload
+for corrupt in (encoded[:6]+"\r\n"+encoded[6:],encoded[:6]+"\t"+encoded[6:],
+                encoded[:6]+"!"+encoded[6:],"abc!", ""):
+    reject(lambda corrupt=corrupt:m.decode_contents({"encoding":"base64","content":corrupt}))
+reject(lambda:m.decode_contents({"encoding":"none","content":encoded}))
 print("R11_CONTROLLED_HOSTILE_PASS; NO LIVE WRITE")
