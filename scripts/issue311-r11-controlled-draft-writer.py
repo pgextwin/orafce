@@ -45,7 +45,7 @@ def parse(value):
 def api(repo, path, method="GET", fields=None):
     """Exact allowlist. One transport call per POST; never retry a lost ACK."""
     git_get = (re.fullmatch(r"git/commits/[0-9a-f]{40}", path)
-               or re.fullmatch(r"git/trees/[0-9a-f]{40}(?:\\?recursive=1)?", path)
+               or re.fullmatch(r"git/trees/[0-9a-f]{40}(?:\?recursive=1)?", path)
                or re.fullmatch(r"git/ref/heads/r11-controlled-draft/r11d-[0-9]{8}-[a-z0-9]{8,24}", path)
                or re.fullmatch(r"git/matching-refs/heads/r11-controlled-draft/r11d-[0-9]{8}-[a-z0-9]{8,24}", path)
                or re.fullmatch(r"pulls/[1-9][0-9]*/files\?per_page=100", path)
@@ -202,7 +202,7 @@ def validate_base(main, request, source, ctx):
 def validate_tree_readback(result, ctx):
     """Git Trees root GET is nonrecursive: request and validate recursive nested proof."""
     proof = ctx["proof"].encode("utf-8")
-    blob_sha = hashlib.sha1(b"blob " + str(len(proof)).encode() + b"\\0" + proof).hexdigest()
+    blob_sha = hashlib.sha1(b"blob " + str(len(proof)).encode() + b"\0" + proof).hexdigest()
     matches = [x for x in result.get("tree", [])
                if x.get("path") == ctx["proofPath"] and x.get("mode") == "100644"
                and x.get("type") == "blob" and x.get("sha") == blob_sha]
