@@ -1,0 +1,48 @@
+name: R11 controlled genuine upstream isolated Draft Writer (NONPUBLISHING)
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/issue311-r11-controlled-draft.yml"
+      - "scripts/issue311-r11-controlled-draft-writer.py"
+      - "tests/test-issue311-r11-controlled-draft-writer.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/r11-controlled-draft-intents/*.json"
+permissions:
+  contents: read
+jobs:
+  hostile:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python tests/test-issue311-r11-controlled-draft-writer.py
+  draft_original:
+    if: github.repository == 'pgextwin/orafce' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor == 'ShutenOishi' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: r11-controlled-draft-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python tests/test-issue311-r11-controlled-draft-writer.py
+      - name: Genuine protected source / real upstream / one isolated Draft create-only / GET readback
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/issue311-r11-controlled-draft-writer.py
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: r11-controlled-real-draft-original
+          path: r11-controlled-draft-writer-original.json
+          if-no-files-found: error
+          retention-days: 30
