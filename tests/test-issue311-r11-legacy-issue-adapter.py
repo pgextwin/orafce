@@ -113,3 +113,55 @@ sc["expiresAt"]="2020-01-01T00:00:00Z"
 try: g.validate(*args)
 except (g.Denied,ValueError): pass
 else: raise AssertionError("expired scoped stage passed")
+
+
+# Controlled ACK-unknown observations are GET-only and never mark legacy write
+# accepted, even when matching original resource bytes are visible.
+import hashlib
+body = g.MARKER + "\n<!-- pgextwin-update-watch-candidate:test -->\n"
+digest = hashlib.sha256(body.encode()).hexdigest()
+unknown = {"writeOutcomeUnknown":True,"intended":"create",
+           "issueNumber":None,"expectedBodySha256":digest}
+observed = []
+def existing_get(path):
+    observed.append(path)
+    assert path == "issues?state=all&per_page=100"
+    return [{"number":71,"state":"open","body":body,
+             "user":{"login":"github-actions[bot]"}}]
+result = g.observe_ambiguous_write(dict(unknown), existing_get)
+assert result["result"] == "GET_ONLY_MATCH_UNATTRIBUTED"
+assert result["accepted"] is False and result["writeRetried"] is False
+assert observed == ["issues?state=all&per_page=100"]
+not_visible=[]
+def absent(path):
+    not_visible.append(path)
+    return []
+result=g.observe_ambiguous_write(dict(unknown),absent)
+assert result["result"]=="BOUNDED_UNKNOWN_QUARANTINED"
+assert len(not_visible)==3 and not result["accepted"]
+bad_owner=lambda path:[{"number":71,"state":"open","body":body,"user":{"login":"other"}}]
+result=g.observe_ambiguous_write(dict(unknown),bad_owner)
+assert result["result"]=="BOUNDED_UNKNOWN_QUARANTINED"
+assert len(result["observations"])==3
+duplicate=lambda path:[{"number":71,"state":"open","body":body},
+                       {"number":72,"state":"open","body":body}]
+result=g.observe_ambiguous_write(dict(unknown),duplicate)
+assert result["result"]=="BOUNDED_UNKNOWN_QUARANTINED"
+for a in result["observations"]:
+    assert a["result"]=="GET_DENIED_OR_UNAVAILABLE"
+# Existing Issue close: compatible observed state is still not proof which
+# Writer committed the change and never resumes or retries the original PATCH.
+receipt={"writeOutcomeUnknown":True,"intended":"close","issueNumber":17}
+calls=[]
+def read_closed(path):
+    calls.append(path)
+    return {"number":17,"state":"closed","body":body,
+            "user":{"login":"github-actions[bot]"}}
+result=g.observe_ambiguous_write(receipt,read_closed)
+assert result["result"]=="GET_ONLY_MATCH_UNATTRIBUTED" and not result["accepted"]
+assert calls==["issues/17"]
+altered=dict(unknown,writeOutcomeUnknown=False)
+try:g.observe_ambiguous_write(altered,existing_get)
+except g.Denied:pass
+else:raise AssertionError("GET recovery allowed before a consumed unknown write")
+print("R11_LEGACY_ACK_BOUNDED_GET_ONLY_HOSTILE_PASS")

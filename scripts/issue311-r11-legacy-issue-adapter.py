@@ -6,6 +6,7 @@ Re-check source provenance and live upstream independently. Preserve the legacy
 marker; do not treat isolated R11 notice issues as existing legacy owners.
 """
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -56,7 +57,7 @@ def central_module():
     return module
 
 def get(path):
-    need(path in ("branches/main", "issues?state=open&per_page=100")
+    need(path in ("branches/main", "issues?state=open&per_page=100", "issues?state=all&per_page=100")
          or re.fullmatch(r"issues/[1-9][0-9]*", path)
          or re.fullmatch(r"actions/runs/[1-9][0-9]*", path),
          "GET endpoint denied")
@@ -142,6 +143,66 @@ def write_once(method, path, fields, receipt):
     need(p.returncode == 0, "Issue write failed/ambiguous; never retry")
     return json.loads(p.stdout, object_pairs_hook=unique)
 
+def observe_ambiguous_write(receipt, fetch=get):
+    """Bounded GET-only after the single legacy Issue write had an unknown ACK.
+
+    Observing matching state is NOT a proof of which Writer changed it: a
+    legacy schedule could perform the same write concurrently. The request
+    stays QUARANTINED regardless of observation. Never replay a POST/PATCH.
+    """
+    need(type(receipt) is dict and receipt.get("writeOutcomeUnknown") is True
+         and receipt.get("intended") in ("create", "update", "close"),
+         "no consumed ambiguous original write")
+    action = receipt["intended"]
+    number = receipt.get("issueNumber")
+    expected = receipt.get("expectedBodySha256")
+    need((action == "create" and number is None or
+          action in ("update", "close") and type(number) is int and number > 0),
+         "invalid immutable affected Issue ID")
+    if action != "close":
+        need(type(expected) is str and re.fullmatch(r"[a-f0-9]{64}", expected),
+             "missing planned exact Issue body")
+    observations = []
+    path = "issues?state=all&per_page=100" if action == "create" else "issues/" + str(number)
+    for attempt in range(1, 4):
+        try:
+            result = fetch(path)
+            if action == "create":
+                need(type(result) is list and len(result) < 100,
+                     "incomplete Issue listing")
+                matches = [x for x in result if type(x) is dict
+                           and x.get("body") is not None
+                           and type(x["body"]) is str
+                           and hashlib.sha256(x["body"].encode()).hexdigest() == expected]
+                need(len(matches) <= 1, "ambiguous duplicate exact Issue content")
+                item = matches[0] if matches else None
+            else:
+                need(type(result) is dict and result.get("number") == number,
+                     "original Issue identity changed")
+                item = result
+            if item is not None:
+                need((item.get("user") or {}).get("login") == "github-actions[bot]"
+                     and type(item.get("body")) is str
+                     and item["body"].startswith(MARKER + "\n"),
+                     "legacy Issue ownership changed")
+                compatible = (item.get("state") == ("closed" if action == "close" else "open")
+                              and (action == "close" or
+                                   hashlib.sha256(item["body"].encode()).hexdigest() == expected))
+                observations.append({"attempt":attempt,
+                                     "result":"COMPATIBLE_UNATTRIBUTED" if compatible else "CONFLICT"})
+                return {"result":"GET_ONLY_MATCH_UNATTRIBUTED" if compatible
+                        else "GET_ONLY_CONFLICT_QUARANTINED",
+                        "observations":observations,"writeRetried":False,
+                        "publisherAuthorized":False,"accepted":False}
+            observations.append({"attempt":attempt,"result":"ABSENT_OR_NOT_YET_VISIBLE"})
+        except (Denied, OSError, KeyError, TypeError, ValueError,
+                subprocess.TimeoutExpired) as exc:
+            observations.append({"attempt":attempt,"result":"GET_DENIED_OR_UNAVAILABLE",
+                                 "errorType":type(exc).__name__})
+    return {"result":"BOUNDED_UNKNOWN_QUARANTINED","observations":observations,
+            "writeRetried":False,"publisherAuthorized":False,"accepted":False}
+
+
 def main():
     receipt = {"schemaVersion":1,"repository":REPO, "action":"DENIED",
                "writeOutcomeUnknown":False,"publicationAuthorized":False,
@@ -183,9 +244,11 @@ def main():
             need(current == action and existing == number, "legacy issue changed")
             if action == "create":
                 title,body=central.render_extension(detected, MARKER)
+                receipt["expectedBodySha256"]=hashlib.sha256(body.encode()).hexdigest()
                 response=write_once("POST","issues",{"title":title,"body":body},receipt)
             elif action == "update":
                 title,body=central.render_extension(detected, MARKER)
+                receipt["expectedBodySha256"]=hashlib.sha256(body.encode()).hexdigest()
                 response=write_once("PATCH","issues/"+str(number),
                                     {"title":title,"body":body},receipt)
             elif action == "close":
@@ -210,6 +273,15 @@ def main():
         print("R11_LEGACY_ISSUE_"+receipt["action"]+"_NONPUBLISHING")
         return 0
     except (Denied, KeyError, ValueError, TypeError, OSError, subprocess.TimeoutExpired) as e:
+        if receipt.get("writeOutcomeUnknown") is True:
+            # Only an ambiguous consumed original write permits this read-only
+            # probe. Even a compatible GET cannot attribute the write to us.
+            try:
+                receipt["finiteRecovery"]=observe_ambiguous_write(receipt)
+            except (Denied, KeyError, ValueError, TypeError) as probe_error:
+                receipt["finiteRecovery"]={"result":"PROBE_DENIED_QUARANTINED",
+                   "errorType":type(probe_error).__name__, "writeRetried":False,
+                   "publisherAuthorized":False, "accepted":False}
         receipt["errorType"]=type(e).__name__
         OUT.write_text(json.dumps(receipt,sort_keys=True)+"\n",encoding="utf-8")
         print("R11_LEGACY_ISSUE_FAIL_CLOSED "+type(e).__name__,file=sys.stderr)
