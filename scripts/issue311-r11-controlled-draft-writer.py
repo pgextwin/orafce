@@ -45,7 +45,7 @@ def parse(value):
 def api(repo, path, method="GET", fields=None):
     """Exact allowlist. One transport call per POST; never retry a lost ACK."""
     git_get = (re.fullmatch(r"git/commits/[0-9a-f]{40}", path)
-               or re.fullmatch(r"git/trees/[0-9a-f]{40}", path)
+               or re.fullmatch(r"git/trees/[0-9a-f]{40}(?:\\?recursive=1)?", path)
                or re.fullmatch(r"git/ref/heads/r11-controlled-draft/r11d-[0-9]{8}-[a-z0-9]{8,24}", path)
                or re.fullmatch(r"git/matching-refs/heads/r11-controlled-draft/r11d-[0-9]{8}-[a-z0-9]{8,24}", path)
                or re.fullmatch(r"pulls/[1-9][0-9]*/files\?per_page=100", path)
@@ -199,6 +199,16 @@ def validate_base(main, request, source, ctx):
          ctx["proofPath"]=="docs/r11-controlled-draft-proof/"+ctx["rid"]+".md",
          "draft context substituted")
 
+def validate_tree_readback(result, ctx):
+    """Git Trees root GET is nonrecursive: request and validate recursive nested proof."""
+    proof = ctx["proof"].encode("utf-8")
+    blob_sha = hashlib.sha1(b"blob " + str(len(proof)).encode() + b"\\0" + proof).hexdigest()
+    matches = [x for x in result.get("tree", [])
+               if x.get("path") == ctx["proofPath"] and x.get("mode") == "100644"
+               and x.get("type") == "blob" and x.get("sha") == blob_sha]
+    need(result.get("sha") == ctx["tree"] and result.get("truncated") is False
+         and len(matches) == 1, "recursive tree nested proof independent GET mismatch")
+
 def main():
     receipt={"schemaVersion":1,"classification":"CONTROLLED_INTEGRATION_DRAFT_ONLY",
         "repository":REPO,"action":"DENY","writeOutcome":"NOT_ATTEMPTED",
@@ -268,10 +278,8 @@ def main():
         ctx["tree"]=tree.get("sha")
         need(type(ctx["tree"]) is str and SHA.fullmatch(ctx["tree"]),
              "tree response unknown")
-        treeback=api(REPO,"git/trees/"+ctx["tree"])
-        need(treeback.get("sha")==ctx["tree"] and
-             any(x.get("path")==ctx["proofPath"] and x.get("type")=="blob"
-                 for x in treeback.get("tree",[])),"independent tree GET mismatch")
+        treeback=api(REPO,"git/trees/"+ctx["tree"]+"?recursive=1")
+        validate_tree_readback(treeback,ctx)
         commit=post_once("git/commits",{"message":ctx["message"],
                "tree":ctx["tree"],"parents":[after]},ctx,receipt)
         ctx["commit"]=commit.get("sha")
@@ -324,6 +332,8 @@ def main():
         return 0
     except (Denied,ValueError,KeyError,TypeError,OSError,UnicodeError,subprocess.TimeoutExpired) as exc:
         receipt["errorType"]=type(exc).__name__
+        if isinstance(exc, Denied):
+            receipt["errorReason"]=str(exc)[:160]
         OUT.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n",encoding="utf-8")
         print("R11_CONTROLLED_DRAFT_DENY: "+type(exc).__name__,file=sys.stderr)
         return 2
