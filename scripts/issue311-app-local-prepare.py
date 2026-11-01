@@ -99,6 +99,23 @@ def authenticate_event(event, env):
          and int(env["GITHUB_RUN_ID"]) > 0, "missing original local Run ID")
     return inputs
 
+def verified_source_route(receipt):
+    """Select the verified PREPARE branch; never infer a candidate from dispatch."""
+    need(receipt.get("result") in ("NO_UPDATE", "UPDATE_PRESENT_NOT_AUTHORIZED")
+         and receipt.get("sourceKind") ==
+             "APP_BOT_AUTHENTICATED_ORIGINAL_PREPARE_LOCAL_READONLY_V1"
+         and receipt.get("candidateAdmissionAuthorized") is False
+         and receipt.get("publisherSourceKindAuthorized") is False
+         and receipt.get("publicationAuthorized") is False
+         and receipt.get("publicReleaseAuthorized") is False
+         and receipt.get("runtimeEnabled") is False
+         and receipt.get("candidateCreated") is False
+         and receipt.get("originalScanReexecuted") is False
+         and receipt.get("centralOriginalOuterZipSha256Verified"),
+         "cannot route unauthenticated or publishing-capable PREPARE receipt")
+    return receipt["result"]
+
+
 def run():
     receipt = {
         "schemaVersion": 1, "requestId": None, "result": "FAILED",
@@ -158,7 +175,13 @@ def run():
     Path(OUTPUT).write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n",
                             encoding="utf-8")
     print("ISSUE311_APP_LOCAL_PREPARE_ORIGINAL", json.dumps(receipt, sort_keys=True))
-    return 0 if receipt["result"] in ("NO_UPDATE", "UPDATE_PRESENT_NOT_AUTHORIZED") else 1
+    if receipt["result"] in ("NO_UPDATE", "UPDATE_PRESENT_NOT_AUTHORIZED"):
+        route = verified_source_route(receipt)
+        need(bool(os.environ.get("GITHUB_OUTPUT")), "missing protected job output")
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+            output.write("source_route=" + route + "\n")
+        return 0
+    return 1
 
 if __name__ == "__main__":
     raise SystemExit(run())

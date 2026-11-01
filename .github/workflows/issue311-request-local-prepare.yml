@@ -85,6 +85,8 @@ jobs:
     name: Original protected PREPARE ZIP verification (NO RELEASE)
     runs-on: ubuntu-latest
     timeout-minutes: 18
+    outputs:
+      source_route: ${{ steps.local_gate.outputs.source_route }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -100,6 +102,7 @@ jobs:
           python-version: '3.13'
       - run: python -m pip install --disable-pip-version-check 'jsonschema>=4,<5'
       - name: Strict actual App event, original 17 protected central Run/ZIP and new local source-kind
+        id: local_gate
         env:
           GH_TOKEN: ${{ github.token }}
         run: python scripts/issue311-app-local-prepare.py
@@ -116,7 +119,7 @@ jobs:
   r08_app_signing_intent:
     name: R08 authenticated original App OIDC signing intent (NO PUBLISH)
     needs: app_local_prepare
-    if: ${{ github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && needs.app_local_prepare.result == 'success' }}
+    if: ${{ github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && needs.app_local_prepare.result == 'success' && needs.app_local_prepare.outputs.source_route == 'UPDATE_PRESENT_NOT_AUTHORIZED' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -159,7 +162,7 @@ jobs:
   # Reuse the existing Windows CI reusable build; no signer/Publisher/Release.
   r07_windows:
     name: R07-01 authenticated App original Windows PG14-18
-    if: ${{ github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && needs.app_local_prepare.result == 'success' && needs.r08_app_signing_intent.result == 'success' }}
+    if: ${{ github.repository == 'pgextwin/orafce' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.actor == 'pgextwin-issue311-prepare-coord[bot]' && github.run_attempt == 1 && needs.app_local_prepare.result == 'success' && needs.app_local_prepare.outputs.source_route == 'UPDATE_PRESENT_NOT_AUTHORIZED' && needs.r08_app_signing_intent.result == 'success' }}
     needs: [app_local_prepare, r08_app_signing_intent]
     permissions:
       contents: read
@@ -188,9 +191,22 @@ jobs:
         env:
           WINDOWS_MATRIX_RESULT: ${{ needs.r07_windows.result }}
           R07_APP_LOCAL_RESULT: ${{ needs.app_local_prepare.result }}
+          SOURCE_ROUTE: ${{ needs.app_local_prepare.outputs.source_route }}
         run: |
+          set -euo pipefail
           test "$R07_APP_LOCAL_RESULT" = success || exit 1
-          python3 scripts/required_windows_summary.py
+          case "$SOURCE_ROUTE" in
+            NO_UPDATE)
+              # No candidate: Windows/Rekor must not be invoked or credited.
+              test "$WINDOWS_MATRIX_RESULT" = skipped || exit 1
+              echo "R07_NOT_APPLICABLE_VERIFIED_NO_UPDATE"
+              ;;
+            UPDATE_PRESENT_NOT_AUTHORIZED)
+              # Keep all mandatory Windows and signing checks for candidates.
+              python3 scripts/required_windows_summary.py
+              ;;
+            *) echo "Untrusted or absent source route" >&2; exit 1 ;;
+          esac
 
   # R08 independent read-only auditors. Real Sigstore is checked on two
   # separately downloaded original ZIP/SPDX/Grype byte sets, not copied claims.
