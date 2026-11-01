@@ -20,7 +20,7 @@ ev = {
         "request_id": m.REQUEST_ID, "source_run_id": "123",
         "source_head_sha": "b" * 40, "source_artifact_id": "456",
         "source_zip_sha256": "c" * 64,
-        "central_request_id": "r-20261030-r06preparecoord001",
+        "central_request_id": m.LEGACY_CENTRAL_REQUEST_ID,
         "local_main_sha": "a" * 40
     }
 }
@@ -62,6 +62,36 @@ for key, value in (
     bad = copy.deepcopy(ev)
     bad["inputs"][key] = value
     reject(bad, env)
+# New original App events must use a deterministic source-bound request ID.
+# Do not replay the legacy fixed ID or accept a mismatched source, target or actor.
+fresh=copy.deepcopy(ev)
+fresh["inputs"]["central_request_id"]="r-20261101-r06prepareoriginal01"
+fresh["inputs"]["source_run_id"]="41077777777"
+fresh["inputs"]["request_id"]=m.derive_local_id(fresh["inputs"])
+assert m.authenticate_event(fresh,env)["request_id"]==fresh["inputs"]["request_id"]
+assert m.derive_local_id(fresh["inputs"])==fresh["inputs"]["request_id"]
+assert m.DERIVED.fullmatch(fresh["inputs"]["request_id"])
+for key,new in (
+    ("source_run_id","41077777778"),
+    ("source_head_sha","f"*40),
+    ("source_zip_sha256","e"*64),
+    ("local_main_sha","d"*40),
+    ("central_request_id","r-20261101-r06prepareoriginal02"),
+    ("request_id",m.REQUEST_ID),
+):
+    bad=copy.deepcopy(fresh);bad["inputs"][key]=new
+    reject(bad,env)
+bad=copy.deepcopy(ev)
+bad["inputs"]["central_request_id"]=fresh["inputs"]["central_request_id"]
+reject(bad,env)
+bad=copy.deepcopy(fresh)
+bad["inputs"]["central_request_id"]=m.LEGACY_CENTRAL_REQUEST_ID
+bad["inputs"]["request_id"]=m.derive_local_id(bad["inputs"])
+reject(bad,env)
+# The original R06 pilot keeps the same one-source value, never an arbitrary new one.
+assert m.authenticate_event(ev,env)["request_id"]==m.REQUEST_ID
+print("ISSUE311_R10_REPLAY_SAFE_LOCAL_DERIVED_ID_HOSTILE_PASS_NOT_LIVE")
+
 body = Path("scripts/issue311-app-local-prepare.py").read_text()
 for required in ("authenticate_original(", "remote_branch(", "centralOriginalOuterZipSha256Verified",
                  "publisherSourceKindAuthorized", "candidateAdmissionAuthorized"):

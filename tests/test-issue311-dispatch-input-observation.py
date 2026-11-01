@@ -25,7 +25,7 @@ def fixture():
              "inputs": {"request_id": gate.REQUEST_ID, "source_run_id": "123",
                         "source_head_sha": "b" * 40, "source_artifact_id": "456",
                         "source_zip_sha256": "c" * 64,
-                        "central_request_id": "r-20261030-r06preparecoord001",
+                        "central_request_id": gate.LEGACY_CENTRAL_REQUEST_ID,
                         "local_main_sha": "a" * 40}}
     return event, env
 
@@ -40,6 +40,20 @@ class ObservationTests(unittest.TestCase):
         self.assertFalse(out["publicationAuthorized"])
         self.assertNotIn(b"never-copy", m.canonical(out))
         self.assertEqual(m.canonical(out), m.canonical(m.observe(event, env)))
+
+    def test_fresh_source_bound_original_input_observation_is_not_authorization(self):
+        event, env = fixture()
+        event["inputs"]["central_request_id"] = "r-20261101-r06prepareoriginal01"
+        event["inputs"]["source_run_id"] = "41077777777"
+        event["inputs"]["request_id"] = gate.derive_local_id(event["inputs"])
+        out = m.observe(event, env)
+        self.assertEqual(out["inputs"]["request_id"], event["inputs"]["request_id"])
+        self.assertFalse(out["centralSourceAdmissionVerified"])
+        self.assertFalse(out["childPrepareCompleted"])
+        self.assertFalse(out["publicationAuthorized"])
+        bad = copy.deepcopy(event); bad["inputs"]["source_zip_sha256"] = "f" * 64
+        with self.assertRaises(gate.Denied):
+            m.observe(bad, env)
 
     def test_forged_event_attempt_head_extra_input_and_missing_input_denied(self):
         event, env = fixture()
