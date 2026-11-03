@@ -1,11 +1,22 @@
-# orafce — Windows x64 バイナリ（pgextwin）
+# orafce — Windows x64 バイナリ
 
 [English](README.md) | 日本語
 
-[orafce](https://github.com/orafce/orafce) **4.16.13**（上流タグ `VERSION_4_16_13`、固定コミット `e538f81acccf73bd9c40977e22e8c4984e452622`）を基にした非公式コミュニティ製Windows x64バイナリです。
+[orafce](https://github.com/orafce/orafce)の**非公式Windows x64バイナリ**です。PostgreSQLでOracle互換の関数やパッケージを利用できます。
 
-**現在の公開Release：** [v4.16.13-windows.1](https://github.com/pgextwin/orafce/releases/tag/v4.16.13-windows.1)。PostgreSQL **14〜18**向けに、メジャーバージョン別のZIPを公開しています。SHA256・SPDX SBOM・Grype・証明情報は[pgextwin Pages](https://pgextwin.github.io/website/ja/)で確認できます。上流公式のWindows配布ではありません。
+## ダウンロードと対応環境
 
-Windows CIではPostgreSQLの起動、`CREATE EXTENSION orafce`、Oracle互換`last_day`のうるう年処理、`nvl`のNULL置換を実際に検証しています。**事前ロードは不要**です。Oracle互換機能のすべて、拡張機能のアップグレード、Oracleとの完全互換性を検証済みとするものではありません。[Windows導入・検証ガイド](docs/windows_ja.md)も参照してください。
+[最新の公開Release](https://github.com/pgextwin/orafce/releases/latest)から、利用中のPostgreSQLメジャーバージョンに一致するZIPを選んでください。[過去のReleases](https://github.com/pgextwin/orafce/releases)も確認できます。PostgreSQL **14〜18**向けの配布状況は[pgextwinカタログ](https://pgextwin.github.io/website/ja/)を参照してください。PostgreSQL 14のコミュニティサポートは2026年11月12日に終了します。
 
-PostgreSQL 14の新規ビルド対象は公式EOLの**2026-11-12**までで、公開済みZIPはEOL後も履歴として保持します。上流更新だけで無条件にReleaseを公開する運用ではありません。
+## インストール
+
+1. PostgreSQL環境のバックアップを取り、[上流のorafceドキュメント](https://github.com/orafce/orafce)で必要条件を確認します。
+2. 既存ファイルの置き換え前にPostgreSQLを停止します。利用中のPostgreSQLメジャー向けZIPを展開し、lib/とshare/extension/以下のファイルをPostgreSQLの同名ディレクトリに配置します。
+3. PostgreSQLを起動し、利用するデータベースでCREATE EXTENSION orafce;を実行します。共有ライブラリの事前ロードは不要です。
+4. 関数の使い方やsearch_pathなどの設定は上流ドキュメントに従ってください。本番導入前に検証環境で動作を確認してください。
+
+ReleaseのSHA256SUMS.txtでZIPを照合できます。SPDX形式のSBOM、脆弱性レポート、署名付き証明の有無はReleaseで確認できます。
+
+## ライセンス
+
+本配布は上流公式のWindows版ではありません。SQLの機能・制限事項は上流プロジェクトの説明を参照してください。再配布条件は同梱のライセンスに従います。
