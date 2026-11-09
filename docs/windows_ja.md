@@ -1,11 +1,11 @@
 # orafce Windows 導入・検証ガイド
 
-**状態：[v4.16.13-windows.1](https://github.com/pgextwin/orafce/releases/tag/v4.16.13-windows.1)をPG14〜18向けに公開済み。** 全majorのWindows CI・機能テスト・成果物検証を経て公開しました。
+**状態：[v4.16.13-windows.1](https://github.com/pgextwin/orafce/releases/tag/v4.16.13-windows.1)をPG14〜18向けに公開済み。** 全メジャーバージョンのWindows CI・機能テスト・成果物検証を経て公開しました。
 
 上流：https://github.com/orafce/orafce/tree/e538f81acccf73bd9c40977e22e8c4984e452622
 
 上流 Meson と MSVC を利用します。ICU 等の Windows 依存関係、SQL 関数の DLL エクスポートを検証します。
-PG14 は 2026-11-12 を超えて維持しません。ZIP の対応 major、SQL ファイル、ライセンス、SBOM・Grype・出自を確認してください。実運用前には対象のWindows版PostgreSQL上で、互換性とバックアップ・復旧手順を別途検証してください。
+PG14 は 2026-11-12 を超えて維持しません。ZIP が対応するメジャーバージョン、SQL ファイル、ライセンス、SBOM・Grype・出自を確認してください。実運用前には対象のWindows版PostgreSQL上で、互換性とバックアップ・復旧手順を別途検証してください。
 
 ### PostgreSQL 14 のWindows互換性
 
