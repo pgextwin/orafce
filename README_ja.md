@@ -12,10 +12,10 @@
 
 1. PostgreSQL環境のバックアップを取り、[上流のorafceドキュメント](https://github.com/orafce/orafce)で必要条件を確認します。
 2. 既存ファイルの置き換え前にPostgreSQLを停止します。利用中のPostgreSQLメジャー向けZIPを展開し、lib/とshare/extension/以下のファイルをPostgreSQLの同名ディレクトリに配置します。
-3. PostgreSQLを起動し、利用するデータベースでCREATE EXTENSION orafce;を実行します。共有ライブラリの事前ロードは不要です。
-4. 関数の使い方やsearch_pathなどの設定は上流ドキュメントに従ってください。本番導入前に検証環境で動作を確認してください。
+3. PostgreSQLを起動し、利用するデータベースで`CREATE EXTENSION orafce;`を実行します。共有ライブラリの事前ロードは不要です。
+4. 関数の使い方や`search_path`などの設定は上流ドキュメントに従ってください。本番環境に導入する前に、検証環境で動作を確認してください。
 
-ReleaseのSHA256SUMS.txtでZIPを照合できます。SPDX形式のSBOM、脆弱性レポート、署名付き証明の有無はReleaseで確認できます。
+ダウンロードしたZIPは、Releaseに掲載された`SHA256SUMS.txt`と照合できます。SPDX形式のSBOM、脆弱性レポート、署名付き証明の有無はReleaseで確認できます。
 
 ## ライセンス
 
