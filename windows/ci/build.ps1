@@ -5,7 +5,7 @@ $ErrorActionPreference='Stop'
 $module='orafce'
 $pgconfig=Join-Path $PgRoot 'bin/pg_config.exe'
 $pgversion=(& $pgconfig --version).Trim()
-if($LASTEXITCODE -ne 0 -or $pgversion -notmatch '^PostgreSQL\s+(14|15|16|17|18)\.') {throw "Unsupported pg_config: $pgversion"}
+if($LASTEXITCODE -ne 0 -or $pgversion -notmatch '^PostgreSQL\s+(14|15|16|17|18|19)\.') {throw "Unsupported pg_config: $pgversion"}
 $vswhere=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio/Installer/vswhere.exe'
 if(-not(Test-Path $vswhere)){throw "Visual Studio locator unavailable: $vswhere"}
 $vsroot=[string](& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1)
@@ -85,12 +85,16 @@ $tmp=if($env:RUNNER_TEMP){$env:RUNNER_TEMP}else{[IO.Path]::GetTempPath()}
 $builddir=Join-Path $tmp "$module-pgextwin-build"
 if(Test-Path $builddir){Remove-Item $builddir -Recurse -Force}
 $cmd=Join-Path $tmp "$module-pgextwin-build.cmd"
+# PG19 headers use C11 constructs (_Noreturn/alignas); Meson's default C mode
+# rejects them, so request C11 explicitly for PG>=19 (pg_ivm precedent).
+$mesonStdArg=''
+if($pgMajor -ge 19){$mesonStdArg=' -Dc_std=c11'}
 @"
 @echo off
 call "$devcmd" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 set "PATH=$PgRoot\bin;%PATH%"
-"$python" -m mesonbuild.mesonmain setup "$builddir" "$UpstreamDir" --backend ninja --buildtype=plain
+"$python" -m mesonbuild.mesonmain setup "$builddir" "$UpstreamDir" --backend ninja --buildtype=plain$mesonStdArg
 if errorlevel 1 exit /b %errorlevel%
 "$python" -m mesonbuild.mesonmain compile -C "$builddir"
 if errorlevel 1 exit /b %errorlevel%
