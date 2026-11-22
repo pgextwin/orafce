@@ -3,9 +3,9 @@
   "name": "orafce",
   "upstream": {
     "repository": "orafce/orafce",
-    "ref": "VERSION_4_17_1",
-    "version": "4.17.1",
-    "commit": "542aed2e0297898cc9844fede3c4452f894b37ed"
+    "ref": "VERSION_4_17_2",
+    "version": "4.17.2",
+    "commit": "0fc291384f2520d6084f59832827626682be5318"
   },
   "postgresql": {
     "majors": [
