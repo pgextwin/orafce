@@ -32,5 +32,11 @@
         "upstreamPath": "COPYRIGHT.orafce"
       }
     ]
+  },
+  "watch": {
+    "source": "github",
+    "strategy": "github-releases",
+    "prereleases": false,
+    "stableTagPattern": "^VERSION_(?P<version>[0-9]+_[0-9]+_[0-9]+)$"
   }
 }
